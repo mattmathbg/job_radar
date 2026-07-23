@@ -1,0 +1,38 @@
+# 🎯 JobRadar Profile
+# Edit this file with your details, then run:
+#   python jobradar.py search -q "your query" -p profile.yaml
+
+name: "Anirudh"
+title: "Software Engineer"
+experience_years: 3
+
+skills:
+  - Python
+  - JavaScript
+  - TypeScript
+  - React
+  - Node.js
+  - Docker
+  - Linux
+  - SQL
+  - Git
+  - Machine Learning
+  - API Development
+  - REST APIs
+
+desired_roles:
+  - Full Stack Developer
+  - Backend Engineer
+  - DevOps Engineer
+  - ML Engineer
+
+salary_min: 80000
+salary_max: 150000
+location_preference: "Remote"
+remote_ok: true
+
+industries:
+  - Technology
+  - AI/ML
+  - SaaS
+  - Open Source
