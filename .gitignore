@@ -17,6 +17,13 @@ results.json
 results.csv
 *.json
 !profile.yaml
+!package.json
+!package-lock.json
+
+# Downloaded binaries and models
+bin/
+models/
+*.gguf
 
 # OS
 .DS_Store

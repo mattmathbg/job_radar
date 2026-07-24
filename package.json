@@ -1,0 +1,29 @@
+{
+  "name": "jobradar",
+  "version": "1.0.0",
+  "description": "AI-Powered Job Search Agent — searches 8+ sources, scores with local LLM",
+  "scripts": {
+    "setup": "bash setup.sh",
+    "start": "bash setup.sh && cd dashboard && bash run.sh",
+    "search": "cd .venv/bin/activate && python -m jobradar",
+    "dashboard": "cd dashboard && bash run.sh",
+    "llm-server": "bash setup.sh && bin/llama-server --model models/qwen3-1.7b-q4_k_m.gguf --port 8080 --host 0.0.0.0"
+  },
+  "keywords": ["job-search", "ai", "llm", "cli", "dashboard"],
+  "author": "Anirudh",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "bin": {
+    "jobradar-setup": "./setup.sh"
+  },
+  "files": [
+    "setup.sh",
+    "requirements.txt",
+    "companies.yaml",
+    "README.md",
+    "jobradar/",
+    "dashboard/"
+  ]
+}
