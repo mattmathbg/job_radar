@@ -1,55 +1,28 @@
 # 🎯 JobRadar — AI-Powered Job Search Agent
 
-A CLI tool that searches jobs from multiple sources and rates each one against your profile using a local LLM — no API costs, no subscriptions, fully private.
+A CLI tool that searches jobs from **6 sources** and rates each one against your profile using a local LLM — no API costs, no subscriptions, fully private.
 
 ## Features
 
-- 🔍 **Multi-source search** — Remotive, Arbeitnow, LinkedIn (all free, no auth needed)
-- 🤖 **AI-powered matching** — Local LLM rates each job against your profile (skills, experience, salary, remote preference)
+- 🔍 **Multi-source search** — Remotive, Arbeitnow, RemoteOK, Jobicy, Himalayas, LinkedIn (all free, no auth needed)
+- 🤖 **AI-powered matching** — Local LLM rates each job against your profile (skills, experience, salary, remote preference, desired roles, industries)
 - 🎨 **Beautiful terminal UI** — Color-coded scores, progress bars, detailed match panels via Rich
 - 📊 **Smart scoring** — 0-100 score with breakdown: skills match, experience fit, salary fit, remote fit
 - 💡 **AI reasoning** — Every rating comes with a plain-English explanation of why it matches (or doesn't)
+- ⚡ **Concurrent searches** — All sources searched in parallel via ThreadPoolExecutor
 - 💾 **Export** — Save results as JSON or CSV for further processing
-- ⚡ **Fast & free** — Uses local models (llama.cpp), zero API costs
 - 🔒 **Fully private** — All processing happens on your machine
 
-## Demo
+## Sources
 
-```
-  ╔═══════════════════════════════════════════════════╗
-  ║   🎯  J O B   R A D A R                         ║
-  ║   AI-Powered Job Search Agent                    ║
-  ╚═══════════════════════════════════════════════════╝
-
-🔍 Searching for: python developer
-
-✓ Found 10 unique jobs from 3 sources
-
-┌───┬─────────────┬──────────────────────────┬──────────────┬────────────┬───────────┬──────────────┐
-│ # │ Score       │ Job Title                │ Company      │ Location   │ Source    │ Salary       │
-├───┼─────────────┼──────────────────────────┼──────────────┼────────────┼───────────┼──────────────┤
-│ 1 │ ██████████░ │ Senior Python Engineer   │ TechCorp     │ Remote     │ Remotive  │ $130k-$160k  │
-│ 2 │ █████████░░ │ Full-Stack Engineer      │ StartupXYZ   │ Anywhere   │ Remotive  │ $110k-$140k  │
-│ 3 │ ████████░░░ │ Backend Developer        │ DataInc      │ New York   │ LinkedIn  │ —            │
-└───┴─────────────┴──────────────────────────┴──────────────┴────────────┴───────────┴──────────────┘
-
-━━━ Top 5 Match Details ━━━
-
-╭──────────────────────────────────────────────────────╮
-│ #1 — Senior Python Engineer @ TechCorp  [Excellent]  │
-│ Score: 85/100                                        │
-│                                                      │
-│   🔗 https://remotive.com/job/python-engineer/...    │
-│                                                      │
-│   Skills Match:    90/100                            │
-│   Experience Fit:  85/100                            │
-│   Salary Fit:      80/100                            │
-│   Remote Fit:      95/100                            │
-│                                                      │
-│   💡 Strong match — Python, Docker, and REST APIs    │
-│      align perfectly with your 3yr experience.       │
-╰──────────────────────────────────────────────────────╯
-```
+| Source | Auth | Pagination | Notes |
+|--------|------|------------|-------|
+| [Remotive](https://remotive.com) | None | Server-side `limit` param | Remote tech jobs |
+| [Arbeitnow](https://www.arbeitnow.com) | None | `?page=N` (100/page) | Global tech jobs |
+| [RemoteOK](https://remoteok.com) | None | None (~100 latest) | Remote jobs, client-side filter |
+| [Jobicy](https://jobicy.com) | None | `?count=N&tag=X` | Remote jobs, tag-filtered |
+| [Himalayas](https://himalayas.app) | None | `?limit=N&offset=N` | Remote jobs, server-side search |
+| [LinkedIn](https://www.linkedin.com) | None | Offset-based | ⚠️ **Disabled by default** — see ToS warning |
 
 ## Quick Start
 
@@ -106,6 +79,8 @@ llama-server -m qwen3-1.7b.gguf --port 8080
 
 ```bash
 python jobradar.py -q "python developer"
+# or
+python -m jobradar -q "python developer"
 ```
 
 ## Usage
@@ -133,6 +108,15 @@ python jobradar.py -q "react developer" --limit 10
 
 # Custom LLM server URL
 python jobradar.py -q "ML engineer" --llm-url http://192.168.1.100:8080
+
+# Enable LinkedIn (off by default — may violate ToS)
+python jobradar.py -q "python" --enable-linkedin
+
+# Control pagination
+python jobradar.py -q "python" --max-pages 5
+
+# Control AI concurrency
+python jobradar.py -q "python" --max-concurrency 5
 ```
 
 ### Export results
@@ -157,19 +141,32 @@ python jobradar.py -q "ML engineer" -p profile.yaml --export jobs.json
 | `-p`, `--profile` | Profile YAML path | `profile.yaml` |
 | `--no-ai` | Skip AI rating | `false` |
 | `--export` | Export to JSON/CSV file | none |
-| `--limit` | Max jobs per source | `25` |
+| `--limit` | Max jobs per source | `50` |
 | `--llm-url` | LLM server URL | `http://localhost:8080` |
+| `--max-pages` | Max pages per source | `3` |
+| `--max-concurrency` | Max concurrent AI rating calls | `3` |
+| `--enable-linkedin` | Enable LinkedIn scraping | `false` (off by default) |
+
+## LinkedIn ToS Warning
+
+⚠️ **LinkedIn scraping is disabled by default.** The LinkedIn source depends on
+undocumented HTML markup and **may violate LinkedIn's Terms of Service**. It
+is provided as-is for educational purposes. To enable it, use `--enable-linkedin`
+or set `JOBRADAR_ENABLE_LINKEDIN=1`. Use at your own risk.
 
 ## How It Works
 
-1. **Search** — Queries 3 free job APIs simultaneously (no auth required):
+1. **Search** — Queries 5 free job APIs concurrently (plus LinkedIn if enabled):
    - [Remotive](https://remotive.com) — remote tech jobs
-   - [Arbeitnow](https://www.arbeitnow.com) — global tech jobs
-   - [LinkedIn](https://www.linkedin.com) — public job listings (web scraping)
+   - [Arbeitnow](https://www.arbeitnow.com) — global tech jobs (paginated)
+   - [RemoteOK](https://remoteok.com) — remote jobs
+   - [Jobicy](https://jobicy.com) — remote jobs with industry tags
+   - [Himalayas](https://himalayas.app) — remote jobs with salary data
+   - [LinkedIn](https://www.linkedin.com) — public job listings (web scraping, opt-in)
 
 2. **Deduplicate** — Removes duplicate postings (same title + company)
 
-3. **Rate** — Your local LLM analyzes each job against your profile:
+3. **Rate** — Your local LLM analyzes each job against your full profile:
    - Skills match: Do your skills align with the job requirements?
    - Experience fit: Does your experience level match?
    - Salary fit: Does the salary range meet your expectations?
@@ -200,6 +197,7 @@ python jobradar.py -q "ML engineer" -p profile.yaml --export jobs.json
 |----------|-------------|---------|
 | `LLM_URL` | LLM server base URL | `http://localhost:8080` |
 | `LLM_MODEL` | Model name for the LLM | `qwen3-1.7b` |
+| `JOBRADAR_ENABLE_LINKEDIN` | Enable LinkedIn scraping | `0` (disabled) |
 
 ## Requirements
 
@@ -213,6 +211,18 @@ python jobradar.py -q "ML engineer" -p profile.yaml --export jobs.json
 - `pyyaml` — profile parsing
 - `requests` — HTTP requests
 - `beautifulsoup4` — LinkedIn scraping
+- `pytest` — testing (dev dependency)
+- `responses` — HTTP mocking in tests (dev dependency)
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -r requirements.txt
+
+# Run tests
+python -m pytest tests/ -v
+```
 
 ## Recommended Models
 
@@ -227,7 +237,7 @@ Smaller models are faster. Larger models give better ratings.
 
 ## License
 
-MIT — use it however you want.
+MIT — see [LICENSE](LICENSE).
 
 ## Author
 
