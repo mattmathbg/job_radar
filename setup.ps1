@@ -33,6 +33,12 @@ if (Get-Command "py" -ErrorAction SilentlyContinue) {
 if ($pyCmd) {
     $pyVer = & $pyCmd -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
     $parts = $pyVer -split "\."
+
+    if ($parts.Count -lt 2) {
+        Fail "Could not detect Python version"
+        exit 1
+    }
+
     if ([int]$parts[0] -ge 3 -and [int]$parts[1] -ge 9) {
         Ok "Python $pyVer found"
     } else {
@@ -55,16 +61,24 @@ if (Test-Path $VenvDir) {
     Ok "Virtual environment created"
 }
 
-# Activate venv
+# Activate venv in the current PowerShell session
 $activateScript = Join-Path $VenvDir "Scripts\Activate.ps1"
-& $activateScript
+if (Test-Path $activateScript) {
+    . $activateScript
+} else {
+    Fail "Activation script not found: $activateScript"
+    exit 1
+}
+
+# Use the venv Python consistently
+$venvPython = Join-Path $VenvDir "Scripts\python.exe"
 
 # Check core packages
 $corePkgs = @("rich", "yaml", "requests", "bs4", "pytest")
 $missingCore = @()
 foreach ($pkg in $corePkgs) {
     $modName = if ($pkg -eq "bs4") { "bs4" } elseif ($pkg -eq "yaml") { "yaml" } else { $pkg }
-    & python -c "import $modName" 2>$null
+    & $venvPython -c "import $modName" 2>$null
     if ($LASTEXITCODE -ne 0) { $missingCore += $pkg }
 }
 
@@ -72,7 +86,7 @@ if ($missingCore.Count -eq 0) {
     Skip "Core Python packages already installed"
 } else {
     Info "  Installing $($missingCore.Count) missing package(s)..."
-    pip install -q -r (Join-Path $ScriptDir "requirements.txt")
+    & $venvPython -m pip install -q -r (Join-Path $ScriptDir "requirements.txt")
     Ok "Core packages installed"
 }
 
@@ -80,7 +94,7 @@ if ($missingCore.Count -eq 0) {
 $dashPkgs = @("fastapi", "uvicorn", "pydantic")
 $missingDash = @()
 foreach ($pkg in $dashPkgs) {
-    & python -c "import $pkg" 2>$null
+    & $venvPython -c "import $pkg" 2>$null
     if ($LASTEXITCODE -ne 0) { $missingDash += $pkg }
 }
 
@@ -88,7 +102,7 @@ if ($missingDash.Count -eq 0) {
     Skip "Dashboard packages already installed"
 } else {
     Info "  Installing $($missingDash.Count) missing dashboard package(s)..."
-    pip install -q -r (Join-Path $ScriptDir "dashboard\requirements.txt")
+    & $venvPython -m pip install -q -r (Join-Path $ScriptDir "dashboard\requirements.txt")
     Ok "Dashboard packages installed"
 }
 
@@ -155,6 +169,9 @@ if (-not $llamaFound) {
         if ($downloaded) {
             Info "  Extracting..."
             $tmpExtract = Join-Path $env:TEMP "llama_extract"
+            if (Test-Path $tmpExtract) {
+                Remove-Item $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
+            }
             Expand-Archive -Path $tmpZip -DestinationPath $tmpExtract -Force
             $found = Get-ChildItem -Path $tmpExtract -Recurse -Filter "llama-server.exe" | Select-Object -First 1
             if ($found) {
@@ -204,10 +221,15 @@ if ($modelExists) {
     try {
         # Use WebClient for progress on large files
         $wc = New-Object System.Net.WebClient
-        $wc.DownloadFile($modelUrl, $modelPart)
+        try {
+            $wc.DownloadFile($modelUrl, $modelPart)
+        } finally {
+            $wc.Dispose()
+        }
+
         Move-Item $modelPart $ModelFile -Force
         $size = (Get-Item $ModelFile).Length / 1GB
-        Ok "Model saved: $ModelFile ([math]::Round($size, 1) GB)"
+        Ok "Model saved: $ModelFile ($([math]::Round($size, 1)) GB)"
     } catch {
         Remove-Item $modelPart -Force -ErrorAction SilentlyContinue
         Fail "Model download failed: $_"
@@ -262,7 +284,7 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Quick start:"
 Write-Host "    cd $ScriptDir"
-Write-Host "    .venv\Scripts\activate"
+Write-Host "    . .venv\Scripts\Activate.ps1"
 Write-Host ""
 Write-Host "  CLI search (no AI - fast):"
 Write-Host "    python -m jobradar -q `"python developer`" --no-ai"
@@ -271,6 +293,6 @@ Write-Host "  CLI search (with AI scoring):"
 Write-Host "    python -m jobradar -q `"python developer`" -p profile.yaml"
 Write-Host ""
 Write-Host "  Web dashboard:"
-Write-Host "    cd dashboard && python -m uvicorn app:app --port 3000"
+Write-Host "    Set-Location dashboard; python -m uvicorn app:app --port 3000"
 Write-Host "    Open http://localhost:3000"
 Write-Host ""
