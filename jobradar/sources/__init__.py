@@ -6,6 +6,8 @@ from jobradar.sources.linkedin import LinkedInSearch
 from jobradar.sources.remoteok import RemoteOKSearch
 from jobradar.sources.jobicy import JobicySearch
 from jobradar.sources.himalayas import HimalayasSearch
+from jobradar.sources.greenhouse import GreenhouseSearch
+from jobradar.sources.ashby import AshbySearch
 
 __all__ = [
     "RemotiveSearch",
@@ -14,4 +16,6 @@ __all__ = [
     "RemoteOKSearch",
     "JobicySearch",
     "HimalayasSearch",
+    "GreenhouseSearch",
+    "AshbySearch",
 ]

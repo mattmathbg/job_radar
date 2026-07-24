@@ -22,6 +22,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from jobradar.models import Job, Profile
 from jobradar.display import console, display_header, display_jobs, export_results
 from jobradar.rating import AIRater, LLM_URL, LLM_MODEL
+from jobradar.cache import SeenJobsCache
 from jobradar.sources import (
     RemotiveSearch,
     ArbeitnowSearch,
@@ -29,10 +30,13 @@ from jobradar.sources import (
     RemoteOKSearch,
     JobicySearch,
     HimalayasSearch,
+    GreenhouseSearch,
+    AshbySearch,
 )
 from jobradar.sources.linkedin import is_linkedin_enabled
 
 DEFAULT_PROFILE = "profile.yaml"
+DEFAULT_COMPANIES = "companies.yaml"
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +53,9 @@ def search_jobs(
     max_pages: int = 3,
     max_concurrency: int = 3,
     enable_linkedin: bool = False,
+    companies_path: str = DEFAULT_COMPANIES,
+    cache_days: int = 7,
+    no_cache: bool = False,
 ) -> List[Job]:
     """Main search pipeline with concurrent source queries."""
     display_header()
@@ -59,13 +66,15 @@ def search_jobs(
         console.print(f"[bold cyan]📍 Location:[/bold cyan] [bold white]{escape(location)}[/bold white]")
     console.print()
 
-    # Build source list
+    # Build source list — all sources run concurrently
     sources = [
         ("Remotive", lambda: RemotiveSearch.search(query, limit=limit, max_pages=max_pages)),
         ("Arbeitnow", lambda: ArbeitnowSearch.search(query, limit=limit, max_pages=max_pages)),
         ("RemoteOK", lambda: RemoteOKSearch.search(query, limit=limit, max_pages=max_pages)),
         ("Jobicy", lambda: JobicySearch.search(query, limit=limit, max_pages=max_pages)),
         ("Himalayas", lambda: HimalayasSearch.search(query, limit=limit, max_pages=max_pages)),
+        ("Greenhouse", lambda: GreenhouseSearch.search(query, limit=limit, companies_path=companies_path)),
+        ("Ashby", lambda: AshbySearch.search(query, limit=limit, companies_path=companies_path)),
     ]
     if enable_linkedin or is_linkedin_enabled():
         sources.append(("LinkedIn", lambda: LinkedInSearch.search(query, location=location, limit=limit, max_pages=max_pages)))
@@ -82,7 +91,7 @@ def search_jobs(
     ) as progress:
         task = progress.add_task("Searching sources...", total=len(sources))
 
-        with ThreadPoolExecutor(max_workers=min(len(sources), 6)) as pool:
+        with ThreadPoolExecutor(max_workers=min(len(sources), 10)) as pool:
             future_to_name = {
                 pool.submit(fn): name for name, fn in sources
             }
@@ -116,10 +125,24 @@ def search_jobs(
             unique_jobs.append(j)
     all_jobs = unique_jobs
 
+    # Apply persistent seen-jobs cache
+    cache = None
+    before_count = len(all_jobs)
+    if not no_cache:
+        try:
+            cache = SeenJobsCache(ttl_days=cache_days)
+            all_jobs = cache.filter_new(all_jobs)
+            if before_count != len(all_jobs):
+                console.print(f"[dim]📋 Cache: {before_count} → {len(all_jobs)} new jobs ({before_count - len(all_jobs)} previously seen, {cache_days}d TTL)[/dim]")
+        except Exception as e:
+            logger.warning("Cache unavailable: %s", e)
+
     src_summary = ", ".join(f"{n}: {c}" for n, c in source_counts.items() if c > 0)
     console.print(f"\n[green]✓ Found {len(all_jobs)} unique jobs from {len([c for c in source_counts.values() if c > 0])} sources ({src_summary})[/green]\n")
 
     if not all_jobs:
+        if cache:
+            cache.close()
         return []
 
     # Step 2: AI Rating
@@ -160,6 +183,17 @@ def search_jobs(
     if export_path:
         fmt = "csv" if export_path.endswith(".csv") else "json"
         export_results(all_jobs, export_path, fmt)
+
+    # Step 5: Update cache with displayed jobs
+    if cache:
+        try:
+            cache.mark_seen(all_jobs)
+            stats = cache.stats()
+            console.print(f"[dim]📋 Cache: {stats['active_entries']} active entries ({stats['ttl_days']}d TTL)[/dim]")
+        except Exception as e:
+            logger.warning("Cache update failed: %s", e)
+        finally:
+            cache.close()
 
     return all_jobs
 
@@ -214,6 +248,8 @@ def main():
           %(prog)s search -q "ML engineer" -p my.yaml # With profile
           %(prog)s search -q "backend" --export jobs.json
           %(prog)s search -q "data engineer" --no-ai  # Skip AI rating
+          %(prog)s search -q "python" --cache-days 30 # 30-day cache
+          %(prog)s search -q "python" --no-cache      # Ignore cache
         """),
     )
     subparsers = parser.add_subparsers(dest="command")
@@ -226,13 +262,45 @@ def main():
     parser.add_argument("--export", help="Export results to file (JSON or CSV)")
     parser.add_argument("--limit", type=int, default=50, help="Max jobs per source (default: 50)")
     parser.add_argument("--llm-url", default=LLM_URL, help="LLM server URL")
-    # New flags
+    # Existing flags
     parser.add_argument("--max-pages", type=int, default=3, help="Max pages per source (default: 3)")
     parser.add_argument("--max-concurrency", type=int, default=3, help="Max concurrent AI rating calls (default: 3)")
     parser.add_argument("--enable-linkedin", action="store_true",
                         help="Enable LinkedIn scraping (off by default — may violate ToS)")
+    # New flags: ATS + cache
+    parser.add_argument("--companies", default=DEFAULT_COMPANIES,
+                        help="Companies YAML for Greenhouse/Ashby (default: companies.yaml)")
+    parser.add_argument("--cache-days", type=int, default=7,
+                        help="Days to remember seen jobs (default: 7)")
+    parser.add_argument("--no-cache", action="store_true",
+                        help="Disable seen-jobs cache")
+    parser.add_argument("--clear-cache", action="store_true",
+                        help="Clear seen-jobs cache and exit")
+    parser.add_argument("--list-ats-companies", action="store_true",
+                        help="Show configured Greenhouse/Ashby company slugs")
 
     args = parser.parse_args()
+
+    # Handle cache management commands
+    if args.clear_cache:
+        from jobradar.cache import SeenJobsCache
+        cache = SeenJobsCache()
+        cache.clear()
+        console.print("[green]✓ Seen-jobs cache cleared.[/green]")
+        return
+
+    if args.list_ats_companies:
+        import yaml
+        try:
+            with open(args.companies) as f:
+                data = yaml.safe_load(f)
+            gh = data.get("greenhouse", []) if isinstance(data, dict) else []
+            ab = data.get("ashby", []) if isinstance(data, dict) else []
+            console.print(f"[bold cyan]Greenhouse ({len(gh)}):[/bold cyan] {', '.join(gh)}")
+            console.print(f"[bold cyan]Ashby ({len(ab)}):[/bold cyan] {', '.join(ab)}")
+        except FileNotFoundError:
+            console.print(f"[red]Companies file not found: {args.companies}[/red]")
+        return
 
     # Set LLM URL via environment
     os.environ["LLM_URL"] = args.llm_url
@@ -259,6 +327,9 @@ def main():
             max_pages=args.max_pages,
             max_concurrency=args.max_concurrency,
             enable_linkedin=args.enable_linkedin,
+            companies_path=args.companies,
+            cache_days=args.cache_days,
+            no_cache=args.no_cache,
         )
     else:
         # Interactive mode
