@@ -3,23 +3,20 @@
   "version": "1.0.0",
   "description": "AI-Powered Job Search Agent — searches 8+ sources, scores with local LLM",
   "scripts": {
-    "setup": "bash setup.sh",
-    "start": "bash setup.sh && cd dashboard && bash run.sh",
-    "search": "cd .venv/bin/activate && python -m jobradar",
-    "dashboard": "cd dashboard && bash run.sh",
-    "llm-server": "bash setup.sh && bin/llama-server --model models/qwen3-1.7b-q4_k_m.gguf --port 8080 --host 0.0.0.0"
+    "setup": "node -e \"const p=process.platform; if(p==='win32'){require('child_process').execSync('powershell -ExecutionPolicy Bypass -File setup.ps1',{stdio:'inherit'})}else{require('child_process').execSync('bash setup.sh',{stdio:'inherit'})}\"",
+    "start": "npm run setup && node -e \"const p=process.platform; if(p==='win32'){require('child_process').execSync('cd dashboard && python -m uvicorn app:app --port 3000',{stdio:'inherit',shell:true})}else{require('child_process').execSync('cd dashboard && bash run.sh',{stdio:'inherit',shell:true})}\"",
+    "dashboard": "node -e \"const p=process.platform; if(p==='win32'){require('child_process').execSync('python -m uvicorn app:app --port 3000',{stdio:'inherit',cwd:'dashboard',shell:true})}else{require('child_process').execSync('bash run.sh',{stdio:'inherit',cwd:'dashboard',shell:true})}\"",
+    "search": "python -m jobradar"
   },
-  "keywords": ["job-search", "ai", "llm", "cli", "dashboard"],
+  "keywords": ["job-search", "ai", "llm", "cli", "dashboard", "greenhouse", "ashby"],
   "author": "Anirudh",
   "license": "MIT",
   "engines": {
     "node": ">=16.0.0"
   },
-  "bin": {
-    "jobradar-setup": "./setup.sh"
-  },
   "files": [
     "setup.sh",
+    "setup.ps1",
     "requirements.txt",
     "companies.yaml",
     "README.md",

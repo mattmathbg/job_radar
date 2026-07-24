@@ -86,6 +86,11 @@ else
     ok "Dashboard packages installed"
 fi
 
+# ── Detect OS ────────────────────────────────────────────────────────────────
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+info "  Detected: $OS $ARCH"
+
 # ── Step 3: llama-server (LLM inference backend) ────────────────────────────
 info "── Step 3/5: llama-server ──"
 mkdir -p "$BIN_DIR"
@@ -97,13 +102,25 @@ elif command -v llama-server &>/dev/null; then
     LLAMA_BIN="$(which llama-server)"
     skip "llama-server found at $LLAMA_BIN"
 else
-    # Check common system locations
-    for candidate in \
-        /usr/local/lib/ollama/llama-server \
-        /usr/bin/llama-server \
-        /usr/local/bin/llama-server \
-        "$HOME/llama-cpp/llama-server" \
-        "$HOME/llama.cpp/build/bin/llama-server"; do
+    # Check common system locations (Linux + macOS)
+    CANDIDATES=(
+        /usr/local/lib/ollama/llama-server
+        /usr/bin/llama-server
+        /usr/local/bin/llama-server
+        "$HOME/llama-cpp/llama-server"
+        "$HOME/llama.cpp/build/bin/llama-server"
+    )
+    # macOS Homebrew paths
+    if [ "$OS" = "Darwin" ]; then
+        if [ -x "/opt/homebrew/bin/llama-server" ]; then
+            CANDIDATES+=("/opt/homebrew/bin/llama-server")
+        fi
+        if [ -x "/usr/local/opt/llama.cpp/bin/llama-server" ]; then
+            CANDIDATES+=("/usr/local/opt/llama.cpp/bin/llama-server")
+        fi
+    fi
+
+    for candidate in "${CANDIDATES[@]}"; do
         if [ -x "$candidate" ]; then
             LLAMA_BIN="$candidate"
             skip "llama-server found at $LLAMA_BIN"
@@ -113,12 +130,26 @@ else
 fi
 
 if [ ! -x "$LLAMA_BIN" ]; then
-    info "  Downloading llama.cpp binary for $(uname -m)..."
+    # On macOS, try brew install first
+    if [ "$OS" = "Darwin" ] && command -v brew &>/dev/null; then
+        info "  Installing llama.cpp via Homebrew..."
+        if brew install llama.cpp 2>/dev/null; then
+            # Homebrew puts it in the cellar — find it
+            BREW_LLAMA=$(find /opt/homebrew /usr/local -name "llama-server" -type f 2>/dev/null | head -1)
+            if [ -n "$BREW_LLAMA" ]; then
+                LLAMA_BIN="$BREW_LLAMA"
+                ok "llama-server installed via Homebrew at $LLAMA_BIN"
+            fi
+        fi
+    fi
+fi
 
-    ARCH="$(uname -m)"
+if [ ! -x "$LLAMA_BIN" ]; then
+    info "  Downloading llama.cpp binary for $OS $ARCH..."
+
     case "$ARCH" in
         x86_64)  LLAMA_ARCH="x86_64" ;;
-        aarch64) LLAMA_ARCH="arm64" ;;
+        aarch64|arm64) LLAMA_ARCH="arm64" ;;
         armv7l)  LLAMA_ARCH="arm" ;;
         *)       fail "Unsupported architecture: $ARCH"; exit 1 ;;
     esac
@@ -130,12 +161,18 @@ if [ ! -x "$LLAMA_BIN" ]; then
 
     if [ -n "$LATEST_TAG" ]; then
         info "  Latest release: $LATEST_TAG"
-        # Try multiple asset name patterns
+
+        # Platform-specific asset name patterns
         DOWNLOADED=false
-        for pattern in \
-            "llama-ubuntu-x64.zip" \
-            "llama-linux-x64.zip" \
-            "llama-server-linux-x64.zip"; do
+        if [ "$OS" = "Linux" ]; then
+            PATTERNS=("llama-ubuntu-x64.zip" "llama-linux-x64.zip" "llama-server-linux-x64.zip")
+        elif [ "$OS" = "Darwin" ]; then
+            PATTERNS=("llama-macos-arm64.zip" "llama-macos-x64.zip" "llama-osx-arm64.zip" "llama-osx-x64.zip")
+        else
+            PATTERNS=("llama-ubuntu-x64.zip" "llama-linux-x64.zip")
+        fi
+
+        for pattern in "${PATTERNS[@]}"; do
             DL_URL="https://github.com/ggml-org/llama.cpp/releases/download/${LATEST_TAG}/${pattern}"
             if curl -fsSL --connect-timeout 10 -o "$TMP_DIR/llama.zip" "$DL_URL" 2>/dev/null; then
                 DOWNLOADED=true
@@ -170,9 +207,13 @@ if [ ! -x "$LLAMA_BIN" ]; then
 
     if [ ! -x "$LLAMA_BIN" ]; then
         warn "Install llama.cpp manually:"
-        warn "  https://github.com/ggml-org/llama.cpp#build"
-        warn "  Or: brew install llama.cpp  (macOS)"
-        warn "  Or: apt install llama.cpp   (Debian/Ubuntu)"
+        if [ "$OS" = "Darwin" ]; then
+            warn "  brew install llama.cpp"
+        else
+            warn "  https://github.com/ggml-org/llama.cpp#build"
+            warn "  Or: apt install llama.cpp  (Debian/Ubuntu)"
+        fi
+        warn "  Or install Ollama: https://ollama.com"
     fi
 fi
 

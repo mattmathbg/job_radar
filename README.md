@@ -19,12 +19,73 @@ So use the scores as a starting point, not a verdict.
 - **Remembers what you've seen** — persistent cache so you don't re-review the same jobs every run
 - **Works completely offline** — all AI runs locally on your machine, no cloud APIs, no subscriptions
 - **Looks good in the terminal** — color-coded scores, progress bars, clean tables
+- **Web dashboard** — dark-mode SPA at localhost:3000 with Kanban pipeline, filters, and config editor
+
+## Quick Install
+
+### Option 1: One-liner (Linux / macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ANIRudH-lab-life/job-radar/main/setup.sh | bash
+```
+
+### Option 2: npm (all platforms)
+
+```bash
+npx jobradar-setup
+# or
+git clone https://github.com/ANIRudH-lab-life/job-radar.git
+cd job-radar
+npm run setup
+```
+
+### Option 3: PowerShell (Windows)
+
+```powershell
+git clone https://github.com/ANIRudH-lab-life/job-radar.git
+cd job-radar
+.\setup.ps1
+```
+
+### Option 4: Manual
+
+```bash
+git clone https://github.com/ANIRudH-lab-life/job-radar.git
+cd job-radar
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+pip install -r dashboard/requirements.txt
+```
+
+### What the installer does
+
+The smart installer (`setup.sh` / `setup.ps1`) checks each dependency before downloading:
+
+| Step | Checks for | Downloads if missing |
+|------|-----------|---------------------|
+| 1. Python | 3.9+ in PATH | — (shows install link) |
+| 2. pip packages | Each import individually | Only missing packages |
+| 3. llama-server | PATH, common locations, Homebrew | GitHub releases or Homebrew |
+| 4. LLM model | Any .gguf in models/ | qwen3-1.7b Q4_K_M (~1.1GB) |
+| 5. Config | profile.yaml | Creates defaults |
+
+Safe to re-run — second run is instant, nothing re-downloaded.
+
+### Platform notes
+
+| Platform | Installer | llama-server source |
+|----------|-----------|-------------------|
+| Linux (x64) | `bash setup.sh` | GitHub release zip or `apt install llama.cpp` |
+| macOS (ARM) | `bash setup.sh` | `brew install llama.cpp` or GitHub release |
+| macOS (Intel) | `bash setup.sh` | `brew install llama.cpp` or GitHub release |
+| Windows (x64) | `.\setup.ps1` | GitHub release zip or Ollama |
 
 ## Quick Start
 
 ```bash
 cd job-radar
-pip install -r requirements.txt
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
 # Quick search (no AI — fast)
 python -m jobradar -q "python developer" --no-ai
@@ -34,6 +95,13 @@ python -m jobradar -q "python developer" -p profile.yaml
 
 # Interactive mode — just run it and type queries
 python -m jobradar
+
+# Web dashboard
+cd dashboard && bash run.sh   # Windows: python -m uvicorn app:app --port 3000
+# Open http://localhost:3000
+
+# Start the LLM server (for AI scoring)
+llama-server --model models/qwen3-1.7b-q4_k_m.gguf --port 8080
 ```
 
 ## Job Sources
@@ -105,6 +173,28 @@ python -m jobradar -q "python" --no-cache
 python -m jobradar --clear-cache
 ```
 
+## Web Dashboard
+
+The dashboard gives you a visual interface for everything:
+
+- **Header stats** — total discovered, high match, pending review, applied
+- **Job cards** with color-coded match scores (green/yellow/red)
+- **Inspector panel** — full description, matched keywords, LLM reasoning
+- **Kanban pipeline** — drag jobs from Discovered → Reviewing → Applied → Interviewing
+- **Config editor** — edit profile.yaml and companies.yaml in the UI
+- **Live activity log** — terminal-style console showing LLM scoring progress
+- **Keyboard shortcuts** — J/K to scroll, E to edit, A to mark applied
+
+Start it with:
+```bash
+cd dashboard
+bash run.sh          # Linux/macOS
+# or
+python -m uvicorn app:app --port 3000   # Windows
+```
+
+Then open http://localhost:3000.
+
 ## CLI Reference
 
 | Flag | Default | What it does |
@@ -128,21 +218,33 @@ python -m jobradar --clear-cache
 ## Architecture
 
 ```
-jobradar/
-├── models.py            # Job and Profile dataclasses
-├── rating.py            # Local LLM rating with retry logic
-├── cache.py             # SQLite seen-jobs cache
-├── display.py           # Rich terminal UI
-├── cli.py               # Search pipeline + argparse
-└── sources/
-    ├── remotive.py      # Remotive API
-    ├── arbeitnow.py     # Arbeitnow API (paginated)
-    ├── remoteok.py      # RemoteOK API
-    ├── jobicy.py        # Jobicy API
-    ├── himalayas.py     # Himalayas API
-    ├── greenhouse.py    # Greenhouse ATS (direct API)
-    ├── ashby.py         # Ashby ATS (direct API)
-    └── linkedin.py      # LinkedIn scraping (opt-in)
+job-radar/
+├── setup.sh              # Smart installer (Linux/macOS)
+├── setup.ps1             # Smart installer (Windows)
+├── package.json          # npm wrapper
+├── profile.yaml          # Your profile (edit this)
+├── companies.yaml        # ATS company slugs (edit this)
+├── jobradar/
+│   ├── models.py         # Job and Profile dataclasses
+│   ├── rating.py         # Local LLM rating with retry logic
+│   ├── cache.py          # SQLite seen-jobs cache
+│   ├── display.py        # Rich terminal UI
+│   ├── cli.py            # Search pipeline + argparse
+│   └── sources/
+│       ├── remotive.py   # Remotive API
+│       ├── arbeitnow.py  # Arbeitnow API (paginated)
+│       ├── remoteok.py   # RemoteOK API
+│       ├── jobicy.py     # Jobicy API
+│       ├── himalayas.py  # Himalayas API
+│       ├── greenhouse.py # Greenhouse ATS (direct API)
+│       ├── ashby.py      # Ashby ATS (direct API)
+│       └── linkedin.py   # LinkedIn scraping (opt-in)
+└── dashboard/
+    ├── app.py            # FastAPI backend
+    ├── database.py       # SQLite storage
+    ├── run.sh            # Dashboard launcher
+    └── static/
+        └── index.html    # Dark-mode SPA
 ```
 
 ## A Note on AI in Job Search
