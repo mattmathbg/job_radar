@@ -1,15 +1,24 @@
-# 🎯 JobRadar — AI-Powered Job Search Agent
+# 🎯 JobRadar
 
-A CLI tool that searches jobs from **6 free sources** simultaneously and rates each one against your profile using a local LLM — no API costs, no subscriptions, fully private.
+A CLI job search agent that hunts across 8 free sources at once and helps you figure out which ones are actually worth your time.
 
-## Features
+It uses a local LLM to score jobs against your profile — but **the AI is just a guide, not a decision-maker**. You're the one who decides what fits. That's the whole point.
 
-- 🔍 **Multi-source search** — Remotive, Arbeitnow, RemoteOK, Jobicy, Himalayas (+ opt-in LinkedIn)
-- 🤖 **AI-powered matching** — Local LLM rates each job against your full profile
-- ⚡ **Concurrent** — All sources searched in parallel, AI ratings batched
-- 📊 **Detailed scoring** — Skills match, experience fit, salary fit, remote fit (0-100 each)
-- 💾 **Export** — JSON or CSV output
-- 🎨 **Beautiful UI** — Rich terminal with color-coded scores and progress bars
+## Why JobRadar?
+
+Most job boards show you hundreds of listings and leave you drowning in tabs. JobRadar pulls from multiple sources at once, filters out the noise, and gives you a ranked list with AI-generated notes on why each job might (or might not) be a fit.
+
+But here's the thing: **we believe the best job search tool puts a human in the loop**. The AI can score and summarize, but it can't understand your gut feeling about a company culture, or that you'd rather work somewhere with a smaller team even if the salary is lower. That part is yours.
+
+So use the scores as a starting point, not a verdict.
+
+## What it does
+
+- **Searches 8 sources at once** — Remotive, Arbeitnow, RemoteOK, Jobicy, Himalayas, Greenhouse (direct ATS), Ashby (direct ATS), and optionally LinkedIn
+- **Rates jobs with a local LLM** — scores each job 0-100 on skills match, experience fit, salary fit, and remote fit
+- **Remembers what you've seen** — persistent cache so you don't re-review the same jobs every run
+- **Works completely offline** — all AI runs locally on your machine, no cloud APIs, no subscriptions
+- **Looks good in the terminal** — color-coded scores, progress bars, clean tables
 
 ## Quick Start
 
@@ -17,30 +26,34 @@ A CLI tool that searches jobs from **6 free sources** simultaneously and rates e
 cd job-radar
 pip install -r requirements.txt
 
-# Search (no AI — fast)
+# Quick search (no AI — fast)
 python -m jobradar -q "python developer" --no-ai
 
-# Search with AI rating (requires local LLM)
+# Search with AI rating (needs a local LLM running)
 python -m jobradar -q "python developer" -p profile.yaml
 
-# Interactive mode
+# Interactive mode — just run it and type queries
 python -m jobradar
 ```
 
 ## Job Sources
 
-| Source | Auth Required | Notes |
-|--------|:---:|-------|
-| Remotive | No | Remote jobs only |
-| Arbeitnow | No | Paginated, worldwide |
-| RemoteOK | No | Remote jobs, 100+ per query |
-| Jobicy | No | Remote jobs with salary data |
-| Himalayas | No | Remote jobs with salary/seniority |
-| LinkedIn | **Opt-in** | ⚠️ May violate ToS — off by default |
+| Source | Type | Notes |
+|--------|------|-------|
+| Remotive | Job board API | Remote jobs |
+| Arbeitnow | Job board API | Worldwide, paginated |
+| RemoteOK | Job board API | Remote jobs, good volume |
+| Jobicy | Job board API | Remote jobs with salary data |
+| Himalayas | Job board API | Remote jobs with seniority levels |
+| Greenhouse | **Direct ATS** | 15 curated tech companies (Gitlab, Figma, Stripe, etc.) |
+| Ashby | **Direct ATS** | 15 curated tech companies (OpenAI, Anthropic, Linear, etc.) |
+| LinkedIn | Web scraping | ⚠️ Off by default — may violate ToS |
 
-## Profile Configuration
+The Greenhouse and Ashby sources pull directly from company career pages via their public APIs. No login, no API keys. You can edit the company list in `companies.yaml`.
 
-Create a `profile.yaml`:
+## Profile Setup
+
+Create a `profile.yaml` with your details so the AI can score jobs against your actual background:
 
 ```yaml
 name: "Your Name"
@@ -55,18 +68,60 @@ remote_ok: true
 industries: [Fintech, SaaS]
 ```
 
-## CLI Flags
+The more detail you put in, the better the scoring. But remember — the AI's score is a suggestion, not a ranking you have to follow.
 
-| Flag | Default | Description |
+## Companies (ATS Sources)
+
+Edit `companies.yaml` to add or remove companies for the Greenhouse and Ashby sources. Just use the company slug (the part of the URL on their careers page):
+
+```yaml
+greenhouse:
+  - gitlab
+  - figma
+  - discord
+  - shopify
+  - stripe
+
+ashby:
+  - openai
+  - anthropic
+  - linear
+  - resend
+  - clerk
+```
+
+## Caching
+
+JobRadar remembers jobs you've already seen so you don't re-review them on every run. By default, it keeps a 7-day cache in `~/.jobradar/seen_jobs.db`.
+
+```bash
+# Change cache duration to 30 days
+python -m jobradar -q "python" --cache-days 30
+
+# Skip the cache entirely
+python -m jobradar -q "python" --no-cache
+
+# Clear the cache
+python -m jobradar --clear-cache
+```
+
+## CLI Reference
+
+| Flag | Default | What it does |
 |------|---------|-------------|
-| `-q`, `--query` | — | Search query (triggers search mode) |
-| `-l`, `--location` | — | Location filter |
-| `-p`, `--profile` | `profile.yaml` | Profile YAML file |
+| `-q`, `--query` | — | Your search query |
+| `-l`, `--location` | — | Filter by location |
+| `-p`, `--profile` | `profile.yaml` | Path to your profile |
 | `--no-ai` | off | Skip AI rating (faster) |
-| `--export` | — | Export to `.json` or `.csv` |
+| `--export` | — | Save results to `.json` or `.csv` |
 | `--limit` | `50` | Max jobs per source |
 | `--max-pages` | `3` | Max pages per source |
-| `--max-concurrency` | `3` | Max concurrent AI calls |
+| `--max-concurrency` | `3` | Concurrent AI rating calls |
+| `--companies` | `companies.yaml` | Company list for ATS sources |
+| `--cache-days` | `7` | Days to remember seen jobs |
+| `--no-cache` | off | Disable the cache |
+| `--clear-cache` | — | Clear cache and exit |
+| `--list-ats-companies` | — | Show configured ATS companies |
 | `--enable-linkedin` | off | ⚠️ Enable LinkedIn scraping |
 | `--llm-url` | `localhost:8080` | LLM server URL |
 
@@ -74,32 +129,39 @@ industries: [Fintech, SaaS]
 
 ```
 jobradar/
-├── __init__.py          # Package init
-├── __main__.py          # python -m jobradar entrypoint
-├── models.py            # Job, Profile dataclasses
-├── rating.py            # AIRater with retry + concurrent calls
+├── models.py            # Job and Profile dataclasses
+├── rating.py            # Local LLM rating with retry logic
+├── cache.py             # SQLite seen-jobs cache
 ├── display.py           # Rich terminal UI
-├── cli.py               # argparse + search pipeline
+├── cli.py               # Search pipeline + argparse
 └── sources/
     ├── remotive.py      # Remotive API
     ├── arbeitnow.py     # Arbeitnow API (paginated)
-    ├── linkedin.py      # LinkedIn scraping (opt-in)
     ├── remoteok.py      # RemoteOK API
     ├── jobicy.py        # Jobicy API
-    └── himalayas.py     # Himalayas API
+    ├── himalayas.py     # Himalayas API
+    ├── greenhouse.py    # Greenhouse ATS (direct API)
+    ├── ashby.py         # Ashby ATS (direct API)
+    └── linkedin.py      # LinkedIn scraping (opt-in)
 ```
+
+## A Note on AI in Job Search
+
+We built JobRadar because job searching is exhausting and the tools out there either dump too many listings on you or try to automate the whole thing. We think the sweet spot is: **let the machine do the grunt work (searching, filtering, summarizing) and keep the human making the actual decisions.**
+
+The AI scoring is there to save you time reading through listings, not to tell you what to apply for. A 95/100 score doesn't mean "apply immediately" — it means "this one looks relevant, worth a closer look." A 40/100 doesn't mean "skip it" — it might be a role you'd love that the AI just doesn't have enough context for.
+
+**You are the loop. The AI is just the filter.**
 
 ## ⚠️ LinkedIn Warning
 
-LinkedIn scraping is **disabled by default** because it depends on undocumented HTML markup that can break at any time and may violate LinkedIn's Terms of Service. Enable only if you understand the risks:
+LinkedIn scraping is **off by default**. It depends on undocumented HTML that breaks constantly and might violate their ToS. We keep it around because sometimes it's useful, but we'd rather you know the tradeoff:
 
 ```bash
 python -m jobradar -q "python dev" --enable-linkedin
-# or
-JOBRADAR_ENABLE_LINKEDIN=1 python -m jobradar -q "python dev"
 ```
 
-## Tests
+## Running Tests
 
 ```bash
 pip install pytest
