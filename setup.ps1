@@ -1,5 +1,5 @@
-# ──────────────────────────────────────────────────────────────────────────────
-# JobRadar — Windows Smart Setup (PowerShell)
+﻿# ──────────────────────────────────────────────────────────────────────────────
+# JobRadar  --  Windows Smart Setup (PowerShell)
 # Checks what exists before downloading anything. Safe to re-run.
 # Run: .\setup.ps1   OR   powershell -ExecutionPolicy Bypass -File setup.ps1
 # ──────────────────────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ if (-not (Test-Path $venvPython)) {
     exit 1
 }
 
-# Check core packages — use the venv's python directly
+# Check core packages  --  use the venv's python directly
 $corePkgs = @("rich", "yaml", "requests", "bs4", "pytest")
 $missingCore = @()
 foreach ($pkg in $corePkgs) {
@@ -152,8 +152,8 @@ if ($missingDash.Count -eq 0) {
 Info "`n-- Step 3/5: LLM Backend --"
 Write-Host ""
 Write-Host "  Which LLM backend do you want?" -ForegroundColor Cyan
-Write-Host "    1) Ollama (recommended) — easy setup, auto-manages models" -ForegroundColor White
-Write-Host "    2) llama.cpp (faster)    — raw performance, manual model download" -ForegroundColor White
+Write-Host "    1) Ollama (recommended)  --  easy setup, auto-manages models" -ForegroundColor White
+Write-Host "    2) llama.cpp (faster)     --  raw performance, manual model download" -ForegroundColor White
 Write-Host ""
 
 $llmChoice = ""
@@ -219,13 +219,13 @@ if ($useOllama) {
     try {
         $modelList = & ollama list 2>$null
     } catch {
-        # ollama list failed — model probably not pulled yet
+        # ollama list failed  --  model probably not pulled yet
     }
 
     if ($modelList -match "qwen3") {
         Skip "Ollama model $ollamaModel already available"
     } else {
-        Info "  Pulling $ollamaModel (~1.1 GB) — this may take a minute..."
+        Info "  Pulling $ollamaModel (~1.1 GB)  --  this may take a minute..."
         & ollama pull $ollamaModel
         if ($LASTEXITCODE -ne 0) {
             Fail "Failed to pull Ollama model"
@@ -257,7 +257,7 @@ if ($useOllama) {
                 Ok "Ollama server started on http://localhost:11434"
             }
         } catch {
-            Warn "Ollama server started — may need a moment to be ready"
+            Warn "Ollama server started  --  may need a moment to be ready"
         }
     } else {
         Ok "Ollama server already running on http://localhost:11434"
@@ -401,7 +401,7 @@ if ($llmBackend -eq "llamacpp") {
         }
     }
 } else {
-    # Ollama manages its own models — skip GGUF download
+    # Ollama manages its own models  --  skip GGUF download
     Info "`n-- Step 4/5: LLM Model --"
     Skip "Ollama manages models automatically (no GGUF download needed)"
 }
