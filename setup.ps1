@@ -23,7 +23,6 @@ $pyCmd = $null
 
 # Try py launcher first (standard Windows Python)
 if (Get-Command "py" -ErrorAction SilentlyContinue) {
-    # Verify py actually launches Python 3
     try {
         $ver = & py -c "import sys; print(sys.version_info.major)" 2>$null
         if ($LASTEXITCODE -eq 0 -and $ver -eq "3") {
@@ -84,8 +83,6 @@ if (Test-Path $VenvDir) {
 }
 
 # ── Activate venv (dot-source, NOT call operator) ──────────────────────────
-# & runs in a child scope — env changes are lost immediately.
-# . (dot-source) runs in the current scope so PATH/VIRTUAL_ENV persist.
 $activateScript = Join-Path $VenvDir "Scripts\Activate.ps1"
 if (-not (Test-Path $activateScript)) {
     Fail "Activation script not found at $activateScript"
@@ -151,146 +148,262 @@ if ($missingDash.Count -eq 0) {
     Ok "Dashboard packages installed"
 }
 
-# ── Step 3: llama-server ────────────────────────────────────────────────────
-Info "`n-- Step 3/5: llama-server --"
-if (-not (Test-Path $BinDir)) { New-Item -ItemType Directory -Path $BinDir | Out-Null }
+# ── Step 3: LLM Backend (Ollama vs llama.cpp) ──────────────────────────────
+Info "`n-- Step 3/5: LLM Backend --"
+Write-Host ""
+Write-Host "  Which LLM backend do you want?" -ForegroundColor Cyan
+Write-Host "    1) Ollama (recommended) — easy setup, auto-manages models" -ForegroundColor White
+Write-Host "    2) llama.cpp (faster)    — raw performance, manual model download" -ForegroundColor White
+Write-Host ""
 
-$llamaExe = Join-Path $BinDir "llama-server.exe"
-
-# Check common locations
-$llamaFound = $false
-$llamaBin = $null
-$candidates = @(
-    $llamaExe,
-    (Join-Path $env:LOCALAPPDATA "Programs\llama.cpp\llama-server.exe"),
-    (Join-Path $env:ProgramFiles "llama.cpp\llama-server.exe"),
-    (Join-Path $env:LOCALAPPDATA "ollama\llama-server.exe")
-)
-
-foreach ($c in $candidates) {
-    if (Test-Path $c) {
-        $llamaBin = $c
-        $llamaFound = $true
-        Skip "llama-server found at $c"
-        break
+$llmChoice = ""
+while ($llmChoice -ne "1" -and $llmChoice -ne "2") {
+    $llmChoice = Read-Host "  Enter 1 or 2 [1]"
+    if (-not $llmChoice) { $llmChoice = "1" }
+    if ($llmChoice -ne "1" -and $llmChoice -ne "2") {
+        Warn "Please enter 1 or 2"
     }
 }
 
-if (-not $llamaFound) {
-    if (Get-Command "llama-server" -ErrorAction SilentlyContinue) {
-        $llamaBin = (Get-Command "llama-server").Source
-        $llamaFound = $true
-        Skip "llama-server found at $llamaBin"
-    }
-}
+$useOllama = ($llmChoice -eq "1")
+$llmBackend = if ($useOllama) { "ollama" } else { "llamacpp" }
 
-if (-not $llamaFound) {
-    Info "  Downloading llama.cpp for Windows x64..."
+if ($useOllama) {
+    # ── Ollama path ────────────────────────────────────────────────────────
+    Info "  Setting up Ollama..."
 
-    # Get latest release tag
-    $latestTag = ""
-    try {
-        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" -TimeoutSec 10
-        $latestTag = $release.tag_name
-    } catch {
-        # GitHub API may be rate-limited or unreachable — try parsing raw response
+    # Check if Ollama is installed
+    $ollamaFound = $false
+    if (Get-Command "ollama" -ErrorAction SilentlyContinue) {
+        $ollamaFound = $true
         try {
-            $headers = @{ "User-Agent" = "JobRadar-Setup" }
-            $response = Invoke-WebRequest -Uri "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" -Headers $headers -TimeoutSec 10 -UseBasicParsing
-            $json = $response.Content | ConvertFrom-Json
-            $latestTag = $json.tag_name
+            $ollamaVer = & ollama --version 2>$null
+            Ok "Ollama installed: $ollamaVer"
         } catch {
-            Warn "Could not reach GitHub API: $($_.Exception.Message)"
+            Ok "Ollama found"
         }
     }
 
-    if ($latestTag) {
-        Info "  Latest release: $latestTag"
-        $downloaded = $false
-
-        foreach ($pattern in @("llama-server-windows-x64.zip", "llama-win-x64.zip")) {
-            $dlUrl = "https://github.com/ggml-org/llama.cpp/releases/download/$latestTag/$pattern"
-            $tmpZip = Join-Path $env:TEMP "llama.zip"
-            try {
-                Invoke-WebRequest -Uri $dlUrl -OutFile $tmpZip -TimeoutSec 120 -UseBasicParsing
-                $downloaded = $true
+    if (-not $ollamaFound) {
+        # Check common install locations
+        $ollamaCandidates = @(
+            (Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe"),
+            (Join-Path $env:ProgramFiles "Ollama\ollama.exe")
+        )
+        foreach ($c in $ollamaCandidates) {
+            if (Test-Path $c) {
+                $ollamaFound = $true
+                Ok "Ollama found at $c"
                 break
+            }
+        }
+    }
+
+    if (-not $ollamaFound) {
+        Warn "Ollama not found. Install it from: https://ollama.com"
+        Warn "  Download Ollama for Windows, then re-run this script."
+        Warn ""
+        Warn "  Falling back to llama.cpp instead..."
+        $useOllama = $false
+        $llmBackend = "llamacpp"
+    }
+}
+
+if ($useOllama) {
+    # Pull the model into Ollama
+    $ollamaModel = "qwen3:1.7b"
+    Info "  Checking Ollama model ($ollamaModel)..."
+
+    # Check if model is already pulled
+    $modelList = ""
+    try {
+        $modelList = & ollama list 2>$null
+    } catch {
+        # ollama list failed — model probably not pulled yet
+    }
+
+    if ($modelList -match "qwen3") {
+        Skip "Ollama model $ollamaModel already available"
+    } else {
+        Info "  Pulling $ollamaModel (~1.1 GB) — this may take a minute..."
+        & ollama pull $ollamaModel
+        if ($LASTEXITCODE -ne 0) {
+            Fail "Failed to pull Ollama model"
+            Warn "  Try manually: ollama pull $ollamaModel"
+        } else {
+            Ok "Ollama model $ollamaModel ready"
+        }
+    }
+
+    # Check if Ollama server is already running
+    $ollamaRunning = $false
+    try {
+        $response = Invoke-WebRequest -Uri "http://localhost:11434/api/tags" -TimeoutSec 2 -UseBasicParsing
+        if ($response.StatusCode -eq 200) {
+            $ollamaRunning = $true
+        }
+    } catch {
+        # not running
+    }
+
+    if (-not $ollamaRunning) {
+        Info "  Starting Ollama server..."
+        # Start Ollama serve in background
+        Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+        try {
+            $response = Invoke-WebRequest -Uri "http://localhost:11434/api/tags" -TimeoutSec 5 -UseBasicParsing
+            if ($response.StatusCode -eq 200) {
+                Ok "Ollama server started on http://localhost:11434"
+            }
+        } catch {
+            Warn "Ollama server started — may need a moment to be ready"
+        }
+    } else {
+        Ok "Ollama server already running on http://localhost:11434"
+    }
+} else {
+    # ── llama.cpp path ─────────────────────────────────────────────────────
+    if (-not (Test-Path $BinDir)) { New-Item -ItemType Directory -Path $BinDir | Out-Null }
+
+    $llamaExe = Join-Path $BinDir "llama-server.exe"
+
+    # Check common locations
+    $llamaFound = $false
+    $llamaBin = $null
+    $candidates = @(
+        $llamaExe,
+        (Join-Path $env:LOCALAPPDATA "Programs\llama.cpp\llama-server.exe"),
+        (Join-Path $env:ProgramFiles "llama.cpp\llama-server.exe")
+    )
+
+    foreach ($c in $candidates) {
+        if (Test-Path $c) {
+            $llamaBin = $c
+            $llamaFound = $true
+            Skip "llama-server found at $c"
+            break
+        }
+    }
+
+    if (-not $llamaFound) {
+        if (Get-Command "llama-server" -ErrorAction SilentlyContinue) {
+            $llamaBin = (Get-Command "llama-server").Source
+            $llamaFound = $true
+            Skip "llama-server found at $llamaBin"
+        }
+    }
+
+    if (-not $llamaFound) {
+        Info "  Downloading llama.cpp for Windows x64..."
+
+        # Get latest release tag
+        $latestTag = ""
+        try {
+            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" -TimeoutSec 10
+            $latestTag = $release.tag_name
+        } catch {
+            try {
+                $headers = @{ "User-Agent" = "JobRadar-Setup" }
+                $response = Invoke-WebRequest -Uri "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" -Headers $headers -TimeoutSec 10 -UseBasicParsing
+                $json = $response.Content | ConvertFrom-Json
+                $latestTag = $json.tag_name
             } catch {
-                # try next pattern
+                Warn "Could not reach GitHub API: $($_.Exception.Message)"
             }
         }
 
-        if ($downloaded) {
-            Info "  Extracting..."
-            $tmpExtract = Join-Path $env:TEMP "llama_extract"
-            if (Test-Path $tmpExtract) {
-                Remove-Item $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
-            }
-            Expand-Archive -Path $tmpZip -DestinationPath $tmpExtract -Force
-            $found = Get-ChildItem -Path $tmpExtract -Recurse -Filter "llama-server.exe" | Select-Object -First 1
-            if ($found) {
-                Copy-Item $found.FullName $llamaExe -Force
-                $llamaBin = $llamaExe
-                Ok "llama-server installed at $llamaExe"
-            } else {
-                # Copy all llama-*.exe
-                Get-ChildItem -Path $tmpExtract -Recurse -Filter "llama-*.exe" | ForEach-Object {
-                    Copy-Item $_.FullName $BinDir -Force
+        if ($latestTag) {
+            Info "  Latest release: $latestTag"
+            $downloaded = $false
+
+            foreach ($pattern in @("llama-server-windows-x64.zip", "llama-win-x64.zip")) {
+                $dlUrl = "https://github.com/ggml-org/llama.cpp/releases/download/$latestTag/$pattern"
+                $tmpZip = Join-Path $env:TEMP "llama.zip"
+                try {
+                    Invoke-WebRequest -Uri $dlUrl -OutFile $tmpZip -TimeoutSec 120 -UseBasicParsing
+                    $downloaded = $true
+                    break
+                } catch {
+                    # try next pattern
                 }
-                if (Test-Path $llamaExe) {
+            }
+
+            if ($downloaded) {
+                Info "  Extracting..."
+                $tmpExtract = Join-Path $env:TEMP "llama_extract"
+                if (Test-Path $tmpExtract) {
+                    Remove-Item $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
+                }
+                Expand-Archive -Path $tmpZip -DestinationPath $tmpExtract -Force
+                $found = Get-ChildItem -Path $tmpExtract -Recurse -Filter "llama-server.exe" | Select-Object -First 1
+                if ($found) {
+                    Copy-Item $found.FullName $llamaExe -Force
                     $llamaBin = $llamaExe
                     Ok "llama-server installed at $llamaExe"
                 } else {
-                    Warn "Download succeeded but llama-server.exe not found in archive"
+                    Get-ChildItem -Path $tmpExtract -Recurse -Filter "llama-*.exe" | ForEach-Object {
+                        Copy-Item $_.FullName $BinDir -Force
+                    }
+                    if (Test-Path $llamaExe) {
+                        $llamaBin = $llamaExe
+                        Ok "llama-server installed at $llamaExe"
+                    } else {
+                        Warn "Download succeeded but llama-server.exe not found in archive"
+                    }
                 }
+                Remove-Item $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
+                Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
+            } else {
+                Warn "Could not download llama.cpp from GitHub releases"
             }
-            Remove-Item $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
-        } else {
-            Warn "Could not download llama.cpp from GitHub releases"
         }
-    }
 
-    if (-not $llamaBin -or -not (Test-Path $llamaExe)) {
-        Warn "Install llama.cpp manually:"
-        Warn "  https://github.com/ggml-org/llama.cpp/releases"
-        Warn "  Or install Ollama: https://ollama.com"
+        if (-not $llamaBin -or -not (Test-Path $llamaExe)) {
+            Fail "llama-server not available"
+            Warn "  Install manually from: https://github.com/ggml-org/llama.cpp/releases"
+        }
     }
 }
 
-# ── Step 4: LLM Model ──────────────────────────────────────────────────────
-Info "`n-- Step 4/5: LLM Model --"
-if (-not (Test-Path $ModelDir)) { New-Item -ItemType Directory -Path $ModelDir | Out-Null }
+# ── Step 4: LLM Model (only for llama.cpp) ──────────────────────────────────
+if ($llmBackend -eq "llamacpp") {
+    Info "`n-- Step 4/5: LLM Model --"
+    if (-not (Test-Path $ModelDir)) { New-Item -ItemType Directory -Path $ModelDir | Out-Null }
 
-$modelExists = Get-ChildItem -Path $ModelDir -Filter "*.gguf" -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($modelExists) {
-    Skip "Model found: $($modelExists.Name)"
-} else {
-    Info "  Downloading qwen3-1.7b Q4_K_M (~1.1 GB)..."
-    Info "  This is a small, fast model - good for CPU inference"
+    $modelExists = Get-ChildItem -Path $ModelDir -Filter "*.gguf" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($modelExists) {
+        Skip "Model found: $($modelExists.Name)"
+    } else {
+        Info "  Downloading qwen3-1.7b Q4_K_M (~1.1 GB)..."
+        Info "  This is a small, fast model - good for CPU inference"
 
-    $modelUrl = "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"
-    $modelPart = "$ModelFile.part"
+        $modelUrl = "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"
+        $modelPart = "$ModelFile.part"
 
-    try {
-        # Use WebClient for progress on large files
-        $wc = New-Object System.Net.WebClient
         try {
-            $wc.DownloadFile($modelUrl, $modelPart)
-        } finally {
-            $wc.Dispose()
-        }
+            $wc = New-Object System.Net.WebClient
+            try {
+                $wc.DownloadFile($modelUrl, $modelPart)
+            } finally {
+                $wc.Dispose()
+            }
 
-        Move-Item $modelPart $ModelFile -Force
-        $size = [math]::Round((Get-Item $ModelFile).Length / 1GB, 1)
-        Ok "Model saved: $ModelFile ($size GB)"
-    } catch {
-        Remove-Item $modelPart -Force -ErrorAction SilentlyContinue
-        Fail "Model download failed: $_"
-        Warn "Download manually from:"
-        Warn "  $modelUrl"
-        Warn "  Save to: $ModelDir\"
+            Move-Item $modelPart $ModelFile -Force
+            $size = [math]::Round((Get-Item $ModelFile).Length / 1GB, 1)
+            Ok "Model saved: $ModelFile ($size GB)"
+        } catch {
+            Remove-Item $modelPart -Force -ErrorAction SilentlyContinue
+            Fail "Model download failed: $_"
+            Warn "Download manually from:"
+            Warn "  $modelUrl"
+            Warn "  Save to: $ModelDir\"
+        }
     }
+} else {
+    # Ollama manages its own models — skip GGUF download
+    Info "`n-- Step 4/5: LLM Model --"
+    Skip "Ollama manages models automatically (no GGUF download needed)"
 }
 
 # ── Step 5: Profile config ──────────────────────────────────────────────────
@@ -344,12 +457,16 @@ Write-Host "  CLI search (no AI - fast):"
 Write-Host "    python -m jobradar -q `"python developer`" --no-ai"
 Write-Host ""
 Write-Host "  CLI search (with AI scoring):"
-Write-Host "    python -m jobradar -q `"python developer`" -p profile.yaml"
+if ($useOllama) {
+    Write-Host "    # Make sure Ollama is running: ollama serve"
+    Write-Host "    python -m jobradar -q `"python developer`" -p profile.yaml --llm-url http://localhost:11434"
+} else {
+    Write-Host "    # Start llama-server first:"
+    Write-Host "    $llamaBin --model $ModelFile --port 8080 --host 0.0.0.0"
+    Write-Host "    python -m jobradar -q `"python developer`" -p profile.yaml"
+}
 Write-Host ""
 Write-Host "  Web dashboard:"
 Write-Host "    Set-Location dashboard; python -m uvicorn app:app --port 3000"
 Write-Host "    Open http://localhost:3000"
-Write-Host ""
-Write-Host "  Start the LLM server (for AI scoring):"
-Write-Host "    $llamaBin --model $ModelFile --port 8080 --host 0.0.0.0"
 Write-Host ""

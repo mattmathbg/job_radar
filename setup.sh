@@ -91,164 +91,247 @@ OS="$(uname -s)"
 ARCH="$(uname -m)"
 info "  Detected: $OS $ARCH"
 
-# ── Step 3: llama-server (LLM inference backend) ────────────────────────────
-info "── Step 3/5: llama-server ──"
-mkdir -p "$BIN_DIR"
+# ── Step 3: LLM Backend (Ollama vs llama.cpp) ──────────────────────────────
+info "── Step 3/5: LLM Backend ──"
+echo ""
+echo -e "${CYAN}  Which LLM backend do you want?${NC}"
+echo -e "    1) Ollama (recommended) — easy setup, auto-manages models"
+echo -e "    2) llama.cpp (faster)    — raw performance, manual model download"
+echo ""
 
-# Check if llama-server is already available
-if [ -x "$LLAMA_BIN" ]; then
-    skip "llama-server at $LLAMA_BIN"
-elif command -v llama-server &>/dev/null; then
-    LLAMA_BIN="$(which llama-server)"
-    skip "llama-server found at $LLAMA_BIN"
-else
-    # Check common system locations (Linux + macOS)
-    CANDIDATES=(
-        /usr/local/lib/ollama/llama-server
-        /usr/bin/llama-server
-        /usr/local/bin/llama-server
-        "$HOME/llama-cpp/llama-server"
-        "$HOME/llama.cpp/build/bin/llama-server"
-    )
-    # macOS Homebrew paths
-    if [ "$OS" = "Darwin" ]; then
-        if [ -x "/opt/homebrew/bin/llama-server" ]; then
-            CANDIDATES+=("/opt/homebrew/bin/llama-server")
-        fi
-        if [ -x "/usr/local/opt/llama.cpp/bin/llama-server" ]; then
-            CANDIDATES+=("/usr/local/opt/llama.cpp/bin/llama-server")
-        fi
-    fi
-
-    for candidate in "${CANDIDATES[@]}"; do
-        if [ -x "$candidate" ]; then
-            LLAMA_BIN="$candidate"
-            skip "llama-server found at $LLAMA_BIN"
-            break
-        fi
-    done
-fi
-
-if [ ! -x "$LLAMA_BIN" ]; then
-    # On macOS, try brew install first
-    if [ "$OS" = "Darwin" ] && command -v brew &>/dev/null; then
-        info "  Installing llama.cpp via Homebrew..."
-        if brew install llama.cpp 2>/dev/null; then
-            # Homebrew puts it in the cellar — find it
-            BREW_LLAMA=$(find /opt/homebrew /usr/local -name "llama-server" -type f 2>/dev/null | head -1)
-            if [ -n "$BREW_LLAMA" ]; then
-                LLAMA_BIN="$BREW_LLAMA"
-                ok "llama-server installed via Homebrew at $LLAMA_BIN"
-            fi
-        fi
-    fi
-fi
-
-if [ ! -x "$LLAMA_BIN" ]; then
-    info "  Downloading llama.cpp binary for $OS $ARCH..."
-
-    case "$ARCH" in
-        x86_64)  LLAMA_ARCH="x86_64" ;;
-        aarch64|arm64) LLAMA_ARCH="arm64" ;;
-        armv7l)  LLAMA_ARCH="arm" ;;
-        *)       fail "Unsupported architecture: $ARCH"; exit 1 ;;
-    esac
-
-    TMP_DIR=$(mktemp -d)
-
-    # Try GitHub releases — find latest release tag dynamically
-    LATEST_TAG=$(curl -fsSL --connect-timeout 10 "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || echo "")
-
-    if [ -n "$LATEST_TAG" ]; then
-        info "  Latest release: $LATEST_TAG"
-
-        # Platform-specific asset name patterns
-        DOWNLOADED=false
-        if [ "$OS" = "Linux" ]; then
-            PATTERNS=("llama-ubuntu-x64.zip" "llama-linux-x64.zip" "llama-server-linux-x64.zip")
-        elif [ "$OS" = "Darwin" ]; then
-            PATTERNS=("llama-macos-arm64.zip" "llama-macos-x64.zip" "llama-osx-arm64.zip" "llama-osx-x64.zip")
-        else
-            PATTERNS=("llama-ubuntu-x64.zip" "llama-linux-x64.zip")
-        fi
-
-        for pattern in "${PATTERNS[@]}"; do
-            DL_URL="https://github.com/ggml-org/llama.cpp/releases/download/${LATEST_TAG}/${pattern}"
-            if curl -fsSL --connect-timeout 10 -o "$TMP_DIR/llama.zip" "$DL_URL" 2>/dev/null; then
-                DOWNLOADED=true
-                break
-            fi
-        done
-
-        if $DOWNLOADED; then
-            info "  Extracting..."
-            cd "$TMP_DIR"
-            unzip -qo llama.zip 2>/dev/null || true
-            FOUND=$(find "$TMP_DIR" -name "llama-server" -type f 2>/dev/null | head -1)
-            if [ -n "$FOUND" ]; then
-                cp "$FOUND" "$LLAMA_BIN"
-                chmod +x "$LLAMA_BIN"
-                ok "llama-server installed at $LLAMA_BIN"
-            else
-                find "$TMP_DIR" -name "llama-*" -type f -exec cp {} "$BIN_DIR/" \; 2>/dev/null
-                if [ -x "$BIN_DIR/llama-server" ]; then
-                    ok "llama-server installed at $LLAMA_BIN"
-                else
-                    warn "Download succeeded but binary not found in archive"
-                fi
-            fi
-        else
-            warn "Could not download llama.cpp from GitHub releases"
-        fi
-        rm -rf "$TMP_DIR"
-    else
-        warn "Could not reach GitHub API"
-    fi
-
-    if [ ! -x "$LLAMA_BIN" ]; then
-        warn "Install llama.cpp manually:"
-        if [ "$OS" = "Darwin" ]; then
-            warn "  brew install llama.cpp"
-        else
-            warn "  https://github.com/ggml-org/llama.cpp#build"
-            warn "  Or: apt install llama.cpp  (Debian/Ubuntu)"
-        fi
-        warn "  Or install Ollama: https://ollama.com"
-    fi
-fi
-
-# ── Step 4: LLM Model (GGUF) ───────────────────────────────────────────────
-info "── Step 4/5: LLM Model ──"
-mkdir -p "$MODEL_DIR"
-
-# Check if any GGUF model exists
-MODEL_FOUND=false
-for f in "$MODEL_DIR"/*.gguf; do
-    if [ -f "$f" ]; then
-        MODEL_FOUND=true
-        MODEL_FILE="$f"
-        break
+LLM_CHOICE=""
+while [ "$LLM_CHOICE" != "1" ] && [ "$LLM_CHOICE" != "2" ]; do
+    read -r -p "  Enter 1 or 2 [1]: " LLM_CHOICE
+    if [ -z "$LLM_CHOICE" ]; then LLM_CHOICE="1"; fi
+    if [ "$LLM_CHOICE" != "1" ] && [ "$LLM_CHOICE" != "2" ]; then
+        warn "Please enter 1 or 2"
     fi
 done
 
-if $MODEL_FOUND; then
-    skip "Model found: $(basename "$MODEL_FILE")"
-else
-    info "  Downloading qwen3-1.7b Q4_K_M (~1.1 GB)..."
-    info "  This is a small, fast model — good for CPU inference"
+USE_OLLAMA=false
+if [ "$LLM_CHOICE" = "1" ]; then
+    USE_OLLAMA=true
+fi
 
-    MODEL_URL="https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"
+if $USE_OLLAMA; then
+    # ── Ollama path ────────────────────────────────────────────────────────
+    info "  Setting up Ollama..."
 
-    if curl -fSL --connect-timeout 10 --progress-bar -o "$MODEL_FILE.part" "$MODEL_URL"; then
-        mv "$MODEL_FILE.part" "$MODEL_FILE"
-        ok "Model saved: $MODEL_FILE ($(du -h "$MODEL_FILE" | cut -f1))"
-    else
-        rm -f "$MODEL_FILE.part"
-        fail "Model download failed"
-        warn "Download manually from:"
-        warn "  $MODEL_URL"
-        warn "  Save to: $MODEL_DIR/"
+    # Check if Ollama is installed
+    OLLAMA_FOUND=false
+    if command -v ollama &>/dev/null; then
+        OLLAMA_FOUND=true
+        OLLAMA_VER=$(ollama --version 2>/dev/null || echo "installed")
+        ok "Ollama found: $OLLAMA_VER"
     fi
+
+    if ! $OLLAMA_FOUND; then
+        warn "Ollama not found. Install it from: https://ollama.com"
+        warn "  Then re-run this script."
+        warn ""
+        warn "  Falling back to llama.cpp instead..."
+        USE_OLLAMA=false
+    fi
+fi
+
+if $USE_OLLAMA; then
+    # Pull the model into Ollama
+    OLLAMA_MODEL="qwen3:1.7b"
+    info "  Checking Ollama model ($OLLAMA_MODEL)..."
+
+    # Check if model is already pulled
+    MODEL_LIST=$(ollama list 2>/dev/null || echo "")
+    if echo "$MODEL_LIST" | grep -q "qwen3"; then
+        skip "Ollama model $OLLAMA_MODEL already available"
+    else
+        info "  Pulling $OLLAMA_MODEL (~1.1 GB) — this may take a minute..."
+        if ollama pull "$OLLAMA_MODEL"; then
+            ok "Ollama model $OLLAMA_MODEL ready"
+        else
+            fail "Failed to pull Ollama model"
+            warn "  Try manually: ollama pull $OLLAMA_MODEL"
+        fi
+    fi
+
+    # Check if Ollama server is already running
+    OLLAMA_RUNNING=false
+    if curl -s http://localhost:11434/api/tags &>/dev/null; then
+        OLLAMA_RUNNING=true
+    fi
+
+    if ! $OLLAMA_RUNNING; then
+        info "  Starting Ollama server..."
+        ollama serve &>/dev/null &
+        sleep 3
+        if curl -s http://localhost:11434/api/tags &>/dev/null; then
+            ok "Ollama server started on http://localhost:11434"
+        else
+            warn "Ollama server started — may need a moment to be ready"
+        fi
+    else
+        ok "Ollama server already running on http://localhost:11434"
+    fi
+else
+    # ── llama.cpp path ─────────────────────────────────────────────────────
+    mkdir -p "$BIN_DIR"
+
+    # Check if llama-server is already available
+    if [ -x "$LLAMA_BIN" ]; then
+        skip "llama-server at $LLAMA_BIN"
+    elif command -v llama-server &>/dev/null; then
+        LLAMA_BIN="$(which llama-server)"
+        skip "llama-server found at $LLAMA_BIN"
+    else
+        # Check common system locations (Linux + macOS)
+        CANDIDATES=(
+            /usr/local/lib/ollama/llama-server
+            /usr/bin/llama-server
+            /usr/local/bin/llama-server
+            "$HOME/llama-cpp/llama-server"
+            "$HOME/llama.cpp/build/bin/llama-server"
+        )
+        # macOS Homebrew paths
+        if [ "$OS" = "Darwin" ]; then
+            if [ -x "/opt/homebrew/bin/llama-server" ]; then
+                CANDIDATES+=("/opt/homebrew/bin/llama-server")
+            fi
+            if [ -x "/usr/local/opt/llama.cpp/bin/llama-server" ]; then
+                CANDIDATES+=("/usr/local/opt/llama.cpp/bin/llama-server")
+            fi
+        fi
+
+        for candidate in "${CANDIDATES[@]}"; do
+            if [ -x "$candidate" ]; then
+                LLAMA_BIN="$candidate"
+                skip "llama-server found at $LLAMA_BIN"
+                break
+            fi
+        done
+    fi
+
+    if [ ! -x "$LLAMA_BIN" ]; then
+        # On macOS, try brew install first
+        if [ "$OS" = "Darwin" ] && command -v brew &>/dev/null; then
+            info "  Installing llama.cpp via Homebrew..."
+            if brew install llama.cpp 2>/dev/null; then
+                BREW_LLAMA=$(find /opt/homebrew /usr/local -name "llama-server" -type f 2>/dev/null | head -1)
+                if [ -n "$BREW_LLAMA" ]; then
+                    LLAMA_BIN="$BREW_LLAMA"
+                    ok "llama-server installed via Homebrew at $LLAMA_BIN"
+                fi
+            fi
+        fi
+    fi
+
+    if [ ! -x "$LLAMA_BIN" ]; then
+        info "  Downloading llama.cpp binary for $OS $ARCH..."
+
+        case "$ARCH" in
+            x86_64)  LLAMA_ARCH="x86_64" ;;
+            aarch64|arm64) LLAMA_ARCH="arm64" ;;
+            armv7l)  LLAMA_ARCH="arm" ;;
+            *)       fail "Unsupported architecture: $ARCH"; exit 1 ;;
+        esac
+
+        TMP_DIR=$(mktemp -d)
+
+        # Try GitHub releases — find latest release tag dynamically
+        LATEST_TAG=$(curl -fsSL --connect-timeout 10 "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || echo "")
+
+        if [ -n "$LATEST_TAG" ]; then
+            info "  Latest release: $LATEST_TAG"
+
+            # Platform-specific asset name patterns
+            DOWNLOADED=false
+            if [ "$OS" = "Linux" ]; then
+                PATTERNS=("llama-ubuntu-x64.zip" "llama-linux-x64.zip" "llama-server-linux-x64.zip")
+            elif [ "$OS" = "Darwin" ]; then
+                PATTERNS=("llama-macos-arm64.zip" "llama-macos-x64.zip" "llama-osx-arm64.zip" "llama-osx-x64.zip")
+            else
+                PATTERNS=("llama-ubuntu-x64.zip" "llama-linux-x64.zip")
+            fi
+
+            for pattern in "${PATTERNS[@]}"; do
+                DL_URL="https://github.com/ggml-org/llama.cpp/releases/download/${LATEST_TAG}/${pattern}"
+                if curl -fsSL --connect-timeout 10 -o "$TMP_DIR/llama.zip" "$DL_URL" 2>/dev/null; then
+                    DOWNLOADED=true
+                    break
+                fi
+            done
+
+            if $DOWNLOADED; then
+                info "  Extracting..."
+                cd "$TMP_DIR"
+                unzip -qo llama.zip 2>/dev/null || true
+                FOUND=$(find "$TMP_DIR" -name "llama-server" -type f 2>/dev/null | head -1)
+                if [ -n "$FOUND" ]; then
+                    cp "$FOUND" "$LLAMA_BIN"
+                    chmod +x "$LLAMA_BIN"
+                    ok "llama-server installed at $LLAMA_BIN"
+                else
+                    find "$TMP_DIR" -name "llama-*" -type f -exec cp {} "$BIN_DIR/" \; 2>/dev/null
+                    if [ -x "$BIN_DIR/llama-server" ]; then
+                        ok "llama-server installed at $LLAMA_BIN"
+                    else
+                        warn "Download succeeded but binary not found in archive"
+                    fi
+                fi
+            else
+                warn "Could not download llama.cpp from GitHub releases"
+            fi
+            rm -rf "$TMP_DIR"
+        else
+            warn "Could not reach GitHub API"
+        fi
+
+        if [ ! -x "$LLAMA_BIN" ]; then
+            fail "llama-server not available"
+            if [ "$OS" = "Darwin" ]; then
+                warn "  Install: brew install llama.cpp"
+            else
+                warn "  Install from: https://github.com/ggml-org/llama.cpp#build"
+            fi
+        fi
+    fi
+fi
+
+# ── Step 4: LLM Model (only for llama.cpp) ──────────────────────────────────
+if ! $USE_OLLAMA; then
+    info "── Step 4/5: LLM Model ──"
+    mkdir -p "$MODEL_DIR"
+
+    # Check if any GGUF model exists
+    MODEL_FOUND=false
+    for f in "$MODEL_DIR"/*.gguf; do
+        if [ -f "$f" ]; then
+            MODEL_FOUND=true
+            MODEL_FILE="$f"
+            break
+        fi
+    done
+
+    if $MODEL_FOUND; then
+        skip "Model found: $(basename "$MODEL_FILE")"
+    else
+        info "  Downloading qwen3-1.7b Q4_K_M (~1.1 GB)..."
+        info "  This is a small, fast model — good for CPU inference"
+
+        MODEL_URL="https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"
+
+        if curl -fSL --connect-timeout 10 --progress-bar -o "$MODEL_FILE.part" "$MODEL_URL"; then
+            mv "$MODEL_FILE.part" "$MODEL_FILE"
+            ok "Model saved: $MODEL_FILE ($(du -h "$MODEL_FILE" | cut -f1))"
+        else
+            rm -f "$MODEL_FILE.part"
+            fail "Model download failed"
+            warn "Download manually from:"
+            warn "  $MODEL_URL"
+            warn "  Save to: $MODEL_DIR/"
+        fi
+    fi
+else
+    info "── Step 4/5: LLM Model ──"
+    skip "Ollama manages models automatically (no GGUF download needed)"
 fi
 
 # ── Step 5: Profile config ──────────────────────────────────────────────────
@@ -299,12 +382,16 @@ echo "  CLI search (no AI — fast):"
 echo "    python -m jobradar -q 'python developer' --no-ai"
 echo ""
 echo "  CLI search (with AI scoring):"
-echo "    python -m jobradar -q 'python developer' -p profile.yaml"
+if $USE_OLLAMA; then
+    echo "    # Make sure Ollama is running: ollama serve"
+    echo "    python -m jobradar -q 'python developer' -p profile.yaml --llm-url http://localhost:11434"
+else
+    echo "    # Start llama-server first:"
+    echo "    $LLAMA_BIN --model $MODEL_FILE --port 8080 --host 0.0.0.0"
+    echo "    python -m jobradar -q 'python developer' -p profile.yaml"
+fi
 echo ""
 echo "  Web dashboard:"
 echo "    cd dashboard && bash run.sh"
 echo "    Open http://localhost:3000"
-echo ""
-echo "  Start the LLM server (for AI scoring):"
-echo "    $LLAMA_BIN --model $MODEL_FILE --port 8080 --host 0.0.0.0"
 echo ""

@@ -66,20 +66,24 @@ The smart installer (`setup.sh` / `setup.ps1`) checks each dependency before dow
 |------|-----------|---------------------|
 | 1. Python | 3.9+ in PATH | — (shows install link) |
 | 2. pip packages | Each import individually | Only missing packages |
-| 3. llama-server | PATH, common locations, Homebrew | GitHub releases or Homebrew |
-| 4. LLM model | Any .gguf in models/ | qwen3-1.7b Q4_K_M (~1.1GB) |
+| 3. LLM Backend | **You choose**: Ollama or llama.cpp | Ollama install + model pull, or llama.cpp binary |
+| 4. LLM Model | Only if llama.cpp chosen | qwen3-1.7b Q4_K_M (~1.1GB) GGUF |
 | 5. Config | profile.yaml | Creates defaults |
 
 Safe to re-run — second run is instant, nothing re-downloaded.
 
+The installer asks which LLM backend you prefer:
+- **Ollama (recommended)** — auto-installs the model, easy to manage, works out of the box
+- **llama.cpp (faster)** — raw performance, downloads GGUF model manually
+
 ### Platform notes
 
 | Platform | Installer | llama-server source |
-|----------|-----------|-------------------|
-| Linux (x64) | `bash setup.sh` | GitHub release zip or `apt install llama.cpp` |
-| macOS (ARM) | `bash setup.sh` | `brew install llama.cpp` or GitHub release |
-| macOS (Intel) | `bash setup.sh` | `brew install llama.cpp` or GitHub release |
-| Windows (x64) | `.\setup.ps1` | GitHub release zip or Ollama |
+|----------|-----------|---------------------|
+| Linux (x64) | `bash setup.sh` | Ollama (recommended) or GitHub release zip |
+| macOS (ARM) | `bash setup.sh` | Ollama (recommended) or `brew install llama.cpp` |
+| macOS (Intel) | `bash setup.sh` | Ollama (recommended) or `brew install llama.cpp` |
+| Windows (x64) | `.\setup.ps1` | Ollama (recommended) or GitHub release zip |
 
 ## Quick Start
 
@@ -101,7 +105,13 @@ cd dashboard && bash run.sh   # Windows: python -m uvicorn app:app --port 3000
 # Open http://localhost:3000
 
 # Start the LLM server (for AI scoring)
+# Option A: Ollama (recommended)
+ollama serve &                              # if not already running
+python -m jobradar -q "python dev" -p profile.yaml --llm-url http://localhost:11434
+
+# Option B: llama.cpp (faster)
 llama-server --model models/qwen3-1.7b-q4_k_m.gguf --port 8080
+python -m jobradar -q "python dev" -p profile.yaml
 ```
 
 ## Job Sources
