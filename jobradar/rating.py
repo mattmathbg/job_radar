@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 LLM_URL = os.environ.get("LLM_URL", "http://localhost:8080")
 LLM_MODEL = os.environ.get("LLM_MODEL", "qwen3-1.7b")
 
+# Ollama uses "qwen3:1.7b" as the model name, llama.cpp uses "qwen3-1.7b"
+_OLLAMA_MODEL = "qwen3:1.7b"
+
 
 class AIRater:
     """Rate jobs against a profile using a local LLM (OpenAI-compatible API)."""
@@ -23,14 +26,42 @@ class AIRater:
     def __init__(self, base_url: str = LLM_URL, max_concurrency: int = 3):
         self.base_url = base_url
         self.max_concurrency = max_concurrency
-        self.available = self._check_health()
+        self.backend = self._detect_backend()
+        self.available = self.backend is not None
+        if self.available:
+            # Auto-select correct model name for the detected backend
+            global LLM_MODEL
+            if self.backend == "ollama" and LLM_MODEL == "qwen3-1.7b":
+                LLM_MODEL = _OLLAMA_MODEL
+            logger.info("LLM backend: %s (model: %s)", self.backend, LLM_MODEL)
 
-    def _check_health(self) -> bool:
+    def _detect_backend(self) -> Optional[str]:
+        """Detect whether we're talking to llama.cpp, Ollama, or nothing."""
+        # Try llama.cpp health endpoint
         try:
-            r = requests.get(f"{self.base_url}/health", timeout=5)
-            return r.status_code == 200
+            r = requests.get(f"{self.base_url}/health", timeout=3)
+            if r.status_code == 200:
+                return "llamacpp"
         except Exception:
-            return False
+            pass
+
+        # Try Ollama API endpoint
+        try:
+            r = requests.get(f"{self.base_url}/api/tags", timeout=3)
+            if r.status_code == 200:
+                return "ollama"
+        except Exception:
+            pass
+
+        # Try OpenAI-compatible models endpoint (works on both)
+        try:
+            r = requests.get(f"{self.base_url}/v1/models", timeout=3)
+            if r.status_code == 200:
+                return "llamacpp"  # OpenAI-compatible, assume llama.cpp
+        except Exception:
+            pass
+
+        return None
 
     def rate_jobs(self, jobs: List[Job], profile: Profile) -> List[Job]:
         """Rate a list of jobs concurrently (respecting max_concurrency)."""

@@ -167,7 +167,7 @@ def search_jobs(
                 progress.update(task, completed=len(all_jobs), elapsed=elapsed)
         else:
             console.print("[yellow]⚠ Local LLM not available. Running without AI ratings.[/yellow]")
-            console.print(f"[dim]  Start llama-server on {LLM_URL} to enable AI ratings[/dim]\n")
+            console.print(f"[dim]  Start Ollama (ollama serve) or llama-server on {LLM_URL} to enable AI ratings[/dim]\n")
             for job in all_jobs:
                 job.score = 50
                 job.rating = "No AI"
