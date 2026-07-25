@@ -23,26 +23,44 @@ $pyCmd = $null
 
 # Try py launcher first (standard Windows Python)
 if (Get-Command "py" -ErrorAction SilentlyContinue) {
-    $pyCmd = "py"
-} elseif (Get-Command "python" -ErrorAction SilentlyContinue) {
-    # Check if it's Python 3
-    $ver = & python -c "import sys; print(sys.version_info.major)" 2>$null
-    if ($ver -eq "3") { $pyCmd = "python" }
+    # Verify py actually launches Python 3
+    try {
+        $ver = & py -c "import sys; print(sys.version_info.major)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $ver -eq "3") {
+            $pyCmd = "py"
+        }
+    } catch {
+        # py launcher exists but didn't work, try python
+    }
+}
+
+if (-not $pyCmd -and (Get-Command "python" -ErrorAction SilentlyContinue)) {
+    try {
+        $ver = & python -c "import sys; print(sys.version_info.major)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $ver -eq "3") {
+            $pyCmd = "python"
+        }
+    } catch {
+        # python exists but not Python 3
+    }
 }
 
 if ($pyCmd) {
-    $pyVer = & $pyCmd -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
-    $parts = $pyVer -split "\."
-
-    if ($parts.Count -lt 2) {
-        Fail "Could not detect Python version"
-        exit 1
-    }
-
-    if ([int]$parts[0] -ge 3 -and [int]$parts[1] -ge 9) {
-        Ok "Python $pyVer found"
-    } else {
-        Fail "Python 3.9+ required (found $pyVer)"
+    try {
+        $pyVer = & $pyCmd -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $pyVer) {
+            Fail "Could not determine Python version"
+            exit 1
+        }
+        $parts = $pyVer -split "\."
+        if ([int]$parts[0] -ge 3 -and [int]$parts[1] -ge 9) {
+            Ok "Python $pyVer found"
+        } else {
+            Fail "Python 3.9+ required (found $pyVer)"
+            exit 1
+        }
+    } catch {
+        Fail "Could not determine Python version: $_"
         exit 1
     }
 } else {
@@ -58,35 +76,54 @@ if (Test-Path $VenvDir) {
 } else {
     Info "  Creating virtual environment..."
     & $pyCmd -m venv $VenvDir
+    if ($LASTEXITCODE -ne 0) {
+        Fail "Failed to create virtual environment"
+        exit 1
+    }
     Ok "Virtual environment created"
 }
 
-# Activate venv in the current PowerShell session
+# ── Activate venv (dot-source, NOT call operator) ──────────────────────────
+# & runs in a child scope — env changes are lost immediately.
+# . (dot-source) runs in the current scope so PATH/VIRTUAL_ENV persist.
 $activateScript = Join-Path $VenvDir "Scripts\Activate.ps1"
-if (Test-Path $activateScript) {
-    . $activateScript
-} else {
-    Fail "Activation script not found: $activateScript"
+if (-not (Test-Path $activateScript)) {
+    Fail "Activation script not found at $activateScript"
+    exit 1
+}
+. $activateScript
+
+# Use venv python/pip directly via full paths to avoid PATH resolution issues
+$venvPython = Join-Path $VenvDir "Scripts\python.exe"
+$venvPip    = Join-Path $VenvDir "Scripts\pip.exe"
+
+if (-not (Test-Path $venvPython)) {
+    Fail "venv python not found at $venvPython"
     exit 1
 }
 
-# Use the venv Python consistently
-$venvPython = Join-Path $VenvDir "Scripts\python.exe"
-
-# Check core packages
+# Check core packages — use the venv's python directly
 $corePkgs = @("rich", "yaml", "requests", "bs4", "pytest")
 $missingCore = @()
 foreach ($pkg in $corePkgs) {
     $modName = if ($pkg -eq "bs4") { "bs4" } elseif ($pkg -eq "yaml") { "yaml" } else { $pkg }
-    & $venvPython -c "import $modName" 2>$null
-    if ($LASTEXITCODE -ne 0) { $missingCore += $pkg }
+    try {
+        & $venvPython -c "import $modName" 2>$null
+        if ($LASTEXITCODE -ne 0) { $missingCore += $pkg }
+    } catch {
+        $missingCore += $pkg
+    }
 }
 
 if ($missingCore.Count -eq 0) {
     Skip "Core Python packages already installed"
 } else {
     Info "  Installing $($missingCore.Count) missing package(s)..."
-    & $venvPython -m pip install -q -r (Join-Path $ScriptDir "requirements.txt")
+    & $venvPip install -q -r (Join-Path $ScriptDir "requirements.txt")
+    if ($LASTEXITCODE -ne 0) {
+        Fail "Failed to install core packages"
+        exit 1
+    }
     Ok "Core packages installed"
 }
 
@@ -94,15 +131,23 @@ if ($missingCore.Count -eq 0) {
 $dashPkgs = @("fastapi", "uvicorn", "pydantic")
 $missingDash = @()
 foreach ($pkg in $dashPkgs) {
-    & $venvPython -c "import $pkg" 2>$null
-    if ($LASTEXITCODE -ne 0) { $missingDash += $pkg }
+    try {
+        & $venvPython -c "import $pkg" 2>$null
+        if ($LASTEXITCODE -ne 0) { $missingDash += $pkg }
+    } catch {
+        $missingDash += $pkg
+    }
 }
 
 if ($missingDash.Count -eq 0) {
     Skip "Dashboard packages already installed"
 } else {
     Info "  Installing $($missingDash.Count) missing dashboard package(s)..."
-    & $venvPython -m pip install -q -r (Join-Path $ScriptDir "dashboard\requirements.txt")
+    & $venvPip install -q -r (Join-Path $ScriptDir "dashboard\requirements.txt")
+    if ($LASTEXITCODE -ne 0) {
+        Fail "Failed to install dashboard packages"
+        exit 1
+    }
     Ok "Dashboard packages installed"
 }
 
@@ -114,6 +159,7 @@ $llamaExe = Join-Path $BinDir "llama-server.exe"
 
 # Check common locations
 $llamaFound = $false
+$llamaBin = $null
 $candidates = @(
     $llamaExe,
     (Join-Path $env:LOCALAPPDATA "Programs\llama.cpp\llama-server.exe"),
@@ -123,7 +169,7 @@ $candidates = @(
 
 foreach ($c in $candidates) {
     if (Test-Path $c) {
-        $script:llamaBin = $c
+        $llamaBin = $c
         $llamaFound = $true
         Skip "llama-server found at $c"
         break
@@ -132,9 +178,9 @@ foreach ($c in $candidates) {
 
 if (-not $llamaFound) {
     if (Get-Command "llama-server" -ErrorAction SilentlyContinue) {
-        $script:llamaBin = (Get-Command "llama-server").Source
+        $llamaBin = (Get-Command "llama-server").Source
         $llamaFound = $true
-        Skip "llama-server found at $($script:llamaBin)"
+        Skip "llama-server found at $llamaBin"
     }
 }
 
@@ -147,7 +193,15 @@ if (-not $llamaFound) {
         $release = Invoke-RestMethod -Uri "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" -TimeoutSec 10
         $latestTag = $release.tag_name
     } catch {
-        Warn "Could not reach GitHub API"
+        # GitHub API may be rate-limited or unreachable — try parsing raw response
+        try {
+            $headers = @{ "User-Agent" = "JobRadar-Setup" }
+            $response = Invoke-WebRequest -Uri "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" -Headers $headers -TimeoutSec 10 -UseBasicParsing
+            $json = $response.Content | ConvertFrom-Json
+            $latestTag = $json.tag_name
+        } catch {
+            Warn "Could not reach GitHub API: $($_.Exception.Message)"
+        }
     }
 
     if ($latestTag) {
@@ -176,7 +230,7 @@ if (-not $llamaFound) {
             $found = Get-ChildItem -Path $tmpExtract -Recurse -Filter "llama-server.exe" | Select-Object -First 1
             if ($found) {
                 Copy-Item $found.FullName $llamaExe -Force
-                $script:llamaBin = $llamaExe
+                $llamaBin = $llamaExe
                 Ok "llama-server installed at $llamaExe"
             } else {
                 # Copy all llama-*.exe
@@ -184,7 +238,7 @@ if (-not $llamaFound) {
                     Copy-Item $_.FullName $BinDir -Force
                 }
                 if (Test-Path $llamaExe) {
-                    $script:llamaBin = $llamaExe
+                    $llamaBin = $llamaExe
                     Ok "llama-server installed at $llamaExe"
                 } else {
                     Warn "Download succeeded but llama-server.exe not found in archive"
@@ -197,7 +251,7 @@ if (-not $llamaFound) {
         }
     }
 
-    if (-not (Test-Path $llamaExe)) {
+    if (-not $llamaBin -or -not (Test-Path $llamaExe)) {
         Warn "Install llama.cpp manually:"
         Warn "  https://github.com/ggml-org/llama.cpp/releases"
         Warn "  Or install Ollama: https://ollama.com"
@@ -228,8 +282,8 @@ if ($modelExists) {
         }
 
         Move-Item $modelPart $ModelFile -Force
-        $size = (Get-Item $ModelFile).Length / 1GB
-        Ok "Model saved: $ModelFile ($([math]::Round($size, 1)) GB)"
+        $size = [math]::Round((Get-Item $ModelFile).Length / 1GB, 1)
+        Ok "Model saved: $ModelFile ($size GB)"
     } catch {
         Remove-Item $modelPart -Force -ErrorAction SilentlyContinue
         Fail "Model download failed: $_"
@@ -295,4 +349,7 @@ Write-Host ""
 Write-Host "  Web dashboard:"
 Write-Host "    Set-Location dashboard; python -m uvicorn app:app --port 3000"
 Write-Host "    Open http://localhost:3000"
+Write-Host ""
+Write-Host "  Start the LLM server (for AI scoring):"
+Write-Host "    $llamaBin --model $ModelFile --port 8080 --host 0.0.0.0"
 Write-Host ""
