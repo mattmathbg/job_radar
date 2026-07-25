@@ -15,7 +15,7 @@ So use the scores as a starting point, not a verdict.
 ## What it does
 
 - **Searches 8 sources at once** — Remotive, Arbeitnow, RemoteOK, Jobicy, Himalayas, Greenhouse (direct ATS), Ashby (direct ATS), and optionally LinkedIn
-- **Rates jobs with a local LLM** — scores each job 0-100 on skills match, experience fit, salary fit, and remote fit
+- **Rates jobs with a local LLM** — auto-detects Ollama or llama.cpp, scores each job 0-100 on skills match, experience fit, salary fit, and remote fit
 - **Remembers what you've seen** — persistent cache so you don't re-review the same jobs every run
 - **Works completely offline** — all AI runs locally on your machine, no cloud APIs, no subscriptions
 - **Looks good in the terminal** — color-coded scores, progress bars, clean tables
@@ -223,7 +223,7 @@ Then open http://localhost:3000.
 | `--clear-cache` | — | Clear cache and exit |
 | `--list-ats-companies` | — | Show configured ATS companies |
 | `--enable-linkedin` | off | ⚠️ Enable LinkedIn scraping |
-| `--llm-url` | `localhost:8080` | LLM server URL |
+| `--llm-url` | `localhost:8080` | LLM server URL (auto-detects Ollama or llama.cpp) |
 
 ## Architecture
 
