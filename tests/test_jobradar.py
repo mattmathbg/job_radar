@@ -124,7 +124,7 @@ class TestJobDedup:
 class TestParseResponse:
     def _make_rater(self):
         """Create an AIRater without connecting."""
-        with patch.object(AIRater, "_check_health", return_value=True):
+        with patch.object(AIRater, "_detect_backend", return_value="llamacpp"):
             return AIRater(base_url="http://fake")
 
     def test_valid_json(self):
