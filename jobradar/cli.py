@@ -150,7 +150,8 @@ def search_jobs(
     if ai_enabled:
         rater = AIRater(base_url=llm_url, max_concurrency=max_concurrency)
         if rater.available:
-            console.print(f"[bold cyan]🤖 Rating jobs with local LLM ({LLM_MODEL}) (concurrency={max_concurrency})...[/bold cyan]\n")
+            import jobradar.rating as _rating
+            console.print(f"[bold cyan]🤖 Rating jobs with local LLM ({_rating.LLM_MODEL}) (concurrency={max_concurrency})...[/bold cyan]\n")
             profile = profile or Profile(name="Job Seeker")
 
             start_time = time.time()
