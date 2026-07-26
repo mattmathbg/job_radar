@@ -224,6 +224,26 @@ Then open http://localhost:3000.
 | `--list-ats-companies` | — | Show configured ATS companies |
 | `--enable-linkedin` | off | ⚠️ Enable LinkedIn scraping |
 | `--llm-url` | *(auto-detect)* | LLM server URL (auto-scans 11434, 8080, 1234) |
+| `--llm-model` | `qwen3:1.7b` | LLM model name (override auto-detection) |
+
+## Changing the Model
+
+JobRadar defaults to `qwen3:1.7b` (1.1 GB, fast on CPU). If you want a different model:
+
+```bash
+# Pull a different model
+ollama pull qwen3:8b          # larger, better reasoning, slower
+ollama pull qwen2.5:1.5b      # smaller, faster, less accurate
+
+# Use it with JobRadar
+python -m jobradar -q "python dev" --llm-model qwen3:8b
+```
+
+Or set it permanently in your environment:
+```bash
+export LLM_MODEL="qwen3:8b"
+python -m jobradar -q "python dev"
+```
 
 ## Architecture
 
