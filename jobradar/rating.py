@@ -143,8 +143,12 @@ class AIRater:
         except Exception:
             pass
 
-    def rate_jobs(self, jobs: List[Job], profile: Profile) -> List[Job]:
-        """Rate a list of jobs concurrently (respecting max_concurrency)."""
+    def rate_jobs(self, jobs: List[Job], profile: Profile, on_progress=None) -> List[Job]:
+        """Rate a list of jobs concurrently (respecting max_concurrency).
+
+        Args:
+            on_progress: Optional callback(rated_count, total_count, last_job) called as each job finishes.
+        """
         if not self.available:
             for job in jobs:
                 job.score = 50
@@ -156,6 +160,8 @@ class AIRater:
                 job.remote_fit = 50
             return jobs
 
+        total = len(jobs)
+        completed = 0
         with ThreadPoolExecutor(max_workers=self.max_concurrency) as pool:
             futures = {pool.submit(self._rate_single, job, profile): job for job in jobs}
             for future in as_completed(futures):
@@ -164,8 +170,11 @@ class AIRater:
                 except Exception as exc:
                     job = futures[future]
                     job.score = 50
-                    job.rating = "⚠ Error"
+                    job.rating = "Error"
                     job.reasoning = str(exc)[:200]
+                completed += 1
+                if on_progress:
+                    on_progress(completed, total, futures[future])
 
         return jobs
 

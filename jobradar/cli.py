@@ -169,7 +169,13 @@ def search_jobs(
                 console=console,
             ) as progress:
                 task = progress.add_task("AI Rating...", total=len(all_jobs), elapsed="")
-                rater.rate_jobs(all_jobs, profile)
+
+                def _on_progress(done, total, job):
+                    elapsed = time.strftime("%M:%S", time.gmtime(time.time() - start_time))
+                    desc = f"AI Rating... [green]{job.score}[/green] {job.company}"
+                    progress.update(task, completed=done, description=desc, elapsed=elapsed)
+
+                rater.rate_jobs(all_jobs, profile, on_progress=_on_progress)
                 elapsed = time.strftime("%M:%S", time.gmtime(time.time() - start_time))
                 progress.update(task, completed=len(all_jobs), elapsed=elapsed)
         else:
