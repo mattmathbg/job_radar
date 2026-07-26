@@ -242,7 +242,7 @@ def interactive_mode(profile: Optional[Profile] = None):
                 profile=profile,
                 ai_enabled=True,
                 llm_url=LLM_URL,
-                llm_model=LLM_MODEL,
+                llm_model=LLM_MODEL or "qwen3:1.7b",
             )
             console.print()
 
