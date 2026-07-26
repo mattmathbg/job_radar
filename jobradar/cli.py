@@ -56,6 +56,7 @@ def search_jobs(
     companies_path: str = DEFAULT_COMPANIES,
     cache_days: int = 7,
     no_cache: bool = False,
+    llm_url: str = "",
 ) -> List[Job]:
     """Main search pipeline with concurrent source queries."""
     display_header()
@@ -147,7 +148,7 @@ def search_jobs(
 
     # Step 2: AI Rating
     if ai_enabled:
-        rater = AIRater(max_concurrency=max_concurrency)
+        rater = AIRater(base_url=llm_url, max_concurrency=max_concurrency)
         if rater.available:
             console.print(f"[bold cyan]🤖 Rating jobs with local LLM ({LLM_MODEL}) (concurrency={max_concurrency})...[/bold cyan]\n")
             profile = profile or Profile(name="Job Seeker")
@@ -167,7 +168,8 @@ def search_jobs(
                 progress.update(task, completed=len(all_jobs), elapsed=elapsed)
         else:
             console.print("[yellow]⚠ Local LLM not available. Running without AI ratings.[/yellow]")
-            console.print(f"[dim]  Start Ollama (ollama serve) or llama-server on {LLM_URL} to enable AI ratings[/dim]\n")
+            console.print("[dim]  Auto-detected ports: 11434 (Ollama), 8080 (llama.cpp), 1234 (LM Studio)[/dim]")
+            console.print("[dim]  Start Ollama, llama-server, or LM Studio, then try again[/dim]\n")
             for job in all_jobs:
                 job.score = 50
                 job.rating = "No AI"
@@ -227,6 +229,7 @@ def interactive_mode(profile: Optional[Profile] = None):
                 location=location,
                 profile=profile,
                 ai_enabled=True,
+                llm_url=LLM_URL,
             )
             console.print()
 
@@ -261,7 +264,7 @@ def main():
     parser.add_argument("--no-ai", action="store_true", help="Skip AI rating (faster)")
     parser.add_argument("--export", help="Export results to file (JSON or CSV)")
     parser.add_argument("--limit", type=int, default=50, help="Max jobs per source (default: 50)")
-    parser.add_argument("--llm-url", default=LLM_URL, help="LLM server URL")
+    parser.add_argument("--llm-url", default="", help="LLM server URL (auto-detects if empty)")
     # Existing flags
     parser.add_argument("--max-pages", type=int, default=3, help="Max pages per source (default: 3)")
     parser.add_argument("--max-concurrency", type=int, default=3, help="Max concurrent AI rating calls (default: 3)")
@@ -302,9 +305,6 @@ def main():
             console.print(f"[red]Companies file not found: {args.companies}[/red]")
         return
 
-    # Set LLM URL via environment
-    os.environ["LLM_URL"] = args.llm_url
-
     # Load profile
     profile = None
     profile_path = Path(args.profile)
@@ -330,6 +330,7 @@ def main():
             companies_path=args.companies,
             cache_days=args.cache_days,
             no_cache=args.no_cache,
+            llm_url=args.llm_url,
         )
     else:
         # Interactive mode

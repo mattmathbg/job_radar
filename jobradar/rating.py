@@ -13,8 +13,15 @@ from jobradar.models import Job, Profile
 
 logger = logging.getLogger(__name__)
 
-LLM_URL = os.environ.get("LLM_URL", "http://localhost:8080")
-LLM_MODEL = os.environ.get("LLM_MODEL", "qwen3-1.7b")
+LLM_URL = os.environ.get("LLM_URL", "")
+LLM_MODEL = os.environ.get("LLM_MODEL", "")
+
+# Common LLM server ports — detection tries these in order
+_DEFAULT_PORTS = [
+    ("http://localhost:11434", "Ollama"),       # Ollama default
+    ("http://localhost:8080",  "llama.cpp"),    # llama.cpp default
+    ("http://localhost:1234",  "LM Studio"),    # LM Studio default
+]
 
 # Ollama uses "qwen3:1.7b" as the model name, llama.cpp uses "qwen3-1.7b"
 _OLLAMA_MODEL = "qwen3:1.7b"
@@ -23,43 +30,82 @@ _OLLAMA_MODEL = "qwen3:1.7b"
 class AIRater:
     """Rate jobs against a profile using a local LLM (OpenAI-compatible API)."""
 
-    def __init__(self, base_url: str = LLM_URL, max_concurrency: int = 3):
-        self.base_url = base_url
+    def __init__(self, base_url: str = "", max_concurrency: int = 3):
+        self.base_url = base_url or LLM_URL
         self.max_concurrency = max_concurrency
         self.backend = self._detect_backend()
         self.available = self.backend is not None
         if self.available:
-            # Auto-select correct model name for the detected backend
             global LLM_MODEL
-            if self.backend == "ollama" and LLM_MODEL == "qwen3-1.7b":
-                LLM_MODEL = _OLLAMA_MODEL
+            # Auto-detect model name
+            if not LLM_MODEL:
+                if self.backend == "ollama":
+                    LLM_MODEL = self._detect_ollama_model() or _OLLAMA_MODEL
+                else:
+                    LLM_MODEL = "qwen3-1.7b"
             logger.info("LLM backend: %s (model: %s)", self.backend, LLM_MODEL)
 
-    def _detect_backend(self) -> Optional[str]:
-        """Detect whether we're talking to llama.cpp, Ollama, or nothing."""
-        # Try llama.cpp health endpoint
-        try:
-            r = requests.get(f"{self.base_url}/health", timeout=3)
-            if r.status_code == 200:
-                return "llamacpp"
-        except Exception:
-            pass
-
-        # Try Ollama API endpoint
+    def _detect_ollama_model(self) -> Optional[str]:
+        """Pick the best model from Ollama's available models."""
         try:
             r = requests.get(f"{self.base_url}/api/tags", timeout=3)
             if r.status_code == 200:
-                return "ollama"
+                models = r.json().get("models", [])
+                if models:
+                    # Prefer qwen3 if available, otherwise first model
+                    for m in models:
+                        name = m.get("name", "")
+                        if "qwen3" in name.lower():
+                            return name
+                    return models[0].get("name", "")
         except Exception:
             pass
+        return None
 
-        # Try OpenAI-compatible models endpoint (works on both)
-        try:
-            r = requests.get(f"{self.base_url}/v1/models", timeout=3)
-            if r.status_code == 200:
-                return "llamacpp"  # OpenAI-compatible, assume llama.cpp
-        except Exception:
-            pass
+    def _detect_backend(self) -> Optional[str]:
+        """Detect whether we're talking to Ollama, llama.cpp, or nothing.
+
+        If a specific URL was given, try that first. Then fall back to
+        scanning common localhost ports (11434, 8080, 1234).
+        """
+        urls_to_try = []
+
+        # If user specified a URL, try that first
+        if self.base_url:
+            urls_to_try.append(self.base_url)
+
+        # Add common ports (deduplicated)
+        for port_url, _ in _DEFAULT_PORTS:
+            if port_url not in urls_to_try:
+                urls_to_try.append(port_url)
+
+        for url in urls_to_try:
+            # Try Ollama /api/tags first (most common)
+            try:
+                r = requests.get(f"{url}/api/tags", timeout=2)
+                if r.status_code == 200:
+                    self.base_url = url
+                    return "ollama"
+            except Exception:
+                pass
+
+            # Try llama.cpp /health
+            try:
+                r = requests.get(f"{url}/health", timeout=2)
+                if r.status_code == 200:
+                    self.base_url = url
+                    return "llamacpp"
+            except Exception:
+                pass
+
+            # Try OpenAI-compatible /v1/models
+            try:
+                r = requests.get(f"{url}/v1/models", timeout=2)
+                if r.status_code == 200:
+                    self.base_url = url
+                    return "llamacpp"
+            except Exception:
+                pass
 
         return None
 
@@ -103,7 +149,7 @@ class AIRater:
                         {"role": "user", "content": f"/no_think\n{prompt}"},
                     ],
                     "temperature": 0.2,
-                    "max_tokens": 200,
+                    "max_tokens": 800,
                     "stop": ["</tool_call>"],
                 },
                 timeout=120,
@@ -111,9 +157,10 @@ class AIRater:
             resp.raise_for_status()
             msg = resp.json()["choices"][0]["message"]
             content = msg.get("content", "") or ""
-            # Fallback: check reasoning_content if content is empty (qwen3 thinking mode)
+            # Fallback: check reasoning fields if content is empty (qwen3 thinking mode)
+            # Ollama uses "reasoning", some providers use "reasoning_content"
             if not content.strip():
-                content = msg.get("reasoning_content", "") or ""
+                content = msg.get("reasoning", "") or msg.get("reasoning_content", "") or ""
             # Strip any <think> tags that leaked through
             content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
             content = re.sub(r'<think>.*', '', content, flags=re.DOTALL).strip()
