@@ -23,8 +23,9 @@ _DEFAULT_PORTS = [
     ("http://localhost:1234",  "LM Studio"),    # LM Studio default
 ]
 
-# Ollama uses "qwen3:1.7b" as the model name, llama.cpp uses "qwen3-1.7b"
+# Default model — use qwen3:1.7b (fast, small, good for CPU)
 _OLLAMA_MODEL = "qwen3:1.7b"
+_LLAMACPP_MODEL = "qwen3-1.7b"
 
 
 class AIRater:
@@ -42,27 +43,24 @@ class AIRater:
                 if self.backend == "ollama":
                     LLM_MODEL = self._detect_ollama_model() or _OLLAMA_MODEL
                 else:
-                    LLM_MODEL = "qwen3-1.7b"
+                    LLM_MODEL = _LLAMACPP_MODEL
             logger.info("LLM backend: %s (model: %s)", self.backend, LLM_MODEL)
 
     def _detect_ollama_model(self) -> Optional[str]:
-        """Pick the fastest available model from Ollama.
+        """Pick the best available model from Ollama.
 
-        Priority: small models first (they're 5-10x faster on CPU).
-        qwen2.5:1.5b > qwen3:1.7b > qwen3:8b > anything else.
+        Default: qwen3:1.7b. Falls back to smallest model if not found.
+        Users can override with --llm-model flag.
         """
-        # Preferred models in speed order (fastest first)
-        _PREFERRED = ["qwen2.5:1.5b", "qwen3:1.7b", "qwen2.5-coder:1.5b", "qwen3:8b"]
         try:
             r = requests.get(f"{self.base_url}/api/tags", timeout=3)
             if r.status_code == 200:
                 models = r.json().get("models", [])
                 if models:
                     available = {m.get("name", "") for m in models}
-                    # Try preferred list first
-                    for pref in _PREFERRED:
-                        if pref in available:
-                            return pref
+                    # Prefer our default model
+                    if _OLLAMA_MODEL in available:
+                        return _OLLAMA_MODEL
                     # Fall back to smallest model by size
                     smallest = min(models, key=lambda m: m.get("size", float("inf")))
                     return smallest.get("name", "")
@@ -126,11 +124,12 @@ class AIRater:
         try:
             start = time.time()
             r = requests.post(
-                f"{url}/v1/chat/completions",
+                f"{url}/api/chat",
                 json={
-                    "model": LLM_MODEL,
+                    "model": LLM_MODEL or _OLLAMA_MODEL,
                     "messages": [{"role": "user", "content": "Say hi"}],
-                    "max_tokens": 5,
+                    "stream": False,
+                    "think": False,
                 },
                 timeout=15,
             )
@@ -175,27 +174,26 @@ class AIRater:
         prompt = self._build_prompt(job, profile)
 
         try:
+            # Use Ollama native API with think=false to disable thinking mode
             resp = requests.post(
-                f"{self.base_url}/v1/chat/completions",
+                f"{self.base_url}/api/chat",
                 json={
-                    "model": LLM_MODEL,
+                    "model": LLM_MODEL or _OLLAMA_MODEL,
                     "messages": [
                         {"role": "system", "content": "Respond ONLY with valid JSON. No thinking, no explanation, no markdown. Just the JSON object."},
-                        {"role": "user", "content": f"/no_think\n{prompt}"},
+                        {"role": "user", "content": prompt},
                     ],
-                    "temperature": 0.2,
-                    "max_tokens": 300,
-                    "stop": ["</tool_call>"],
+                    "stream": False,
+                    "think": False,
                 },
-                timeout=30,
+                timeout=60,
             )
             resp.raise_for_status()
-            msg = resp.json()["choices"][0]["message"]
+            msg = resp.json()["message"]
             content = msg.get("content", "") or ""
-            # Fallback: check reasoning fields if content is empty (qwen3 thinking mode)
-            # Ollama uses "reasoning", some providers use "reasoning_content"
+            # Fallback: check thinking field if content is empty
             if not content.strip():
-                content = msg.get("reasoning", "") or msg.get("reasoning_content", "") or ""
+                content = msg.get("thinking", "") or ""
             # Strip any <think> tags that leaked through
             content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
             content = re.sub(r'<think>.*', '', content, flags=re.DOTALL).strip()
@@ -203,7 +201,7 @@ class AIRater:
         except requests.exceptions.Timeout:
             job.score = 50
             job.rating = "Timeout"
-            job.reasoning = f"LLM timed out after 30s (model too slow? try smaller model)"
+            job.reasoning = "LLM timed out after 60s"
             logger.warning("Timeout rating %s @ %s", job.title, job.company)
         except requests.exceptions.ConnectionError:
             job.score = 50
@@ -212,7 +210,7 @@ class AIRater:
             logger.warning("Connection error to %s", self.base_url)
         except Exception as e:
             job.score = 50
-            job.rating = "⚠ Rating failed"
+            job.rating = "Rating failed"
             job.reasoning = str(e)[:200]
             job.skills_match = 50
             job.experience_fit = 50

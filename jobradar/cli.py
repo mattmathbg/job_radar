@@ -21,7 +21,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 
 from jobradar.models import Job, Profile
 from jobradar.display import console, display_header, display_jobs, export_results
-from jobradar.rating import AIRater, LLM_URL, LLM_MODEL
+from jobradar.rating import AIRater, LLM_URL
 from jobradar.cache import SeenJobsCache
 from jobradar.sources import (
     RemotiveSearch,
@@ -57,6 +57,7 @@ def search_jobs(
     cache_days: int = 7,
     no_cache: bool = False,
     llm_url: str = "",
+    llm_model: str = "",
 ) -> List[Job]:
     """Main search pipeline with concurrent source queries."""
     display_header()
@@ -148,6 +149,10 @@ def search_jobs(
 
     # Step 2: AI Rating
     if ai_enabled:
+        # Set model before creating rater
+        if llm_model:
+            import jobradar.rating as _rating
+            _rating.LLM_MODEL = llm_model
         rater = AIRater(base_url=llm_url, max_concurrency=max_concurrency)
         if rater.available:
             import jobradar.rating as _rating
@@ -231,6 +236,7 @@ def interactive_mode(profile: Optional[Profile] = None):
                 profile=profile,
                 ai_enabled=True,
                 llm_url=LLM_URL,
+                llm_model=LLM_MODEL,
             )
             console.print()
 
@@ -266,6 +272,7 @@ def main():
     parser.add_argument("--export", help="Export results to file (JSON or CSV)")
     parser.add_argument("--limit", type=int, default=50, help="Max jobs per source (default: 50)")
     parser.add_argument("--llm-url", default="", help="LLM server URL (auto-detects if empty)")
+    parser.add_argument("--llm-model", default="", help="LLM model name (default: qwen3:1.7b)")
     # Existing flags
     parser.add_argument("--max-pages", type=int, default=3, help="Max pages per source (default: 3)")
     parser.add_argument("--max-concurrency", type=int, default=3, help="Max concurrent AI rating calls (default: 3)")
@@ -332,6 +339,7 @@ def main():
             cache_days=args.cache_days,
             no_cache=args.no_cache,
             llm_url=args.llm_url,
+            llm_model=args.llm_model,
         )
     else:
         # Interactive mode

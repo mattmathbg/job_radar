@@ -52,7 +52,7 @@ if ($pyCmd) {
             exit 1
         }
         $parts = $pyVer -split "\."
-        if ([int]$parts[0] -ge 3 -and [int]$parts[1] -ge 9) {
+        if ([int]$parts[0] -gt 3 -or ([int]$parts[0] -eq 3 -and [int]$parts[1] -ge 9)) {
             Ok "Python $pyVer found"
         } else {
             Fail "Python 3.9+ required (found $pyVer)"
@@ -222,7 +222,7 @@ if ($useOllama) {
         # ollama list failed  --  model probably not pulled yet
     }
 
-    if ($modelList -match "qwen3") {
+    if ($modelList -match "qwen3:1\.7b") {
         Skip "Ollama model $ollamaModel already available"
     } else {
         Info "  Pulling $ollamaModel (~1.1 GB)  --  this may take a minute..."
@@ -230,6 +230,7 @@ if ($useOllama) {
         if ($LASTEXITCODE -ne 0) {
             Fail "Failed to pull Ollama model"
             Warn "  Try manually: ollama pull $ollamaModel"
+            exit 1
         } else {
             Ok "Ollama model $ollamaModel ready"
         }
@@ -362,7 +363,8 @@ if ($useOllama) {
         if (-not $llamaBin -or -not (Test-Path $llamaExe)) {
             Fail "llama-server not available"
             Warn "  Install manually from: https://github.com/ggml-org/llama.cpp/releases"
-        }
+            exit 1
+            }
     }
 }
 
@@ -397,7 +399,7 @@ if ($llmBackend -eq "llamacpp") {
             Fail "Model download failed: $_"
             Warn "Download manually from:"
             Warn "  $modelUrl"
-            Warn "  Save to: $ModelDir\"
+            Warn "  Save as: qwen3-1.7b-q4_k_m.gguf in $ModelDir\"
         }
     }
 } else {
@@ -459,7 +461,7 @@ Write-Host ""
 Write-Host "  CLI search (with AI scoring):"
 if ($useOllama) {
     Write-Host "    # Make sure Ollama is running: ollama serve"
-    Write-Host "    python -m jobradar -q `"python developer`" -p profile.yaml --llm-url http://localhost:11434"
+    Write-Host "    python -m jobradar -q `"python developer`" -p profile.yaml"
 } else {
     Write-Host "    # Start llama-server first:"
     Write-Host "    $llamaBin --model $ModelFile --port 8080 --host 0.0.0.0"

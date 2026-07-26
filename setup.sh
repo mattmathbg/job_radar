@@ -31,7 +31,7 @@ if command -v python3 &>/dev/null; then
     PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
     PY_MAJOR=$(echo "$PY_VER" | cut -d. -f1)
     PY_MINOR=$(echo "$PY_VER" | cut -d. -f2)
-    if [ "$PY_MAJOR" -ge 3 ] && [ "$PY_MINOR" -ge 9 ]; then
+    if [ "$PY_MAJOR" -gt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -ge 9 ]; }; then
         ok "Python $PY_VER found"
     else
         fail "Python 3.9+ required (found $PY_VER)"
@@ -101,7 +101,7 @@ echo ""
 
 LLM_CHOICE=""
 while [ "$LLM_CHOICE" != "1" ] && [ "$LLM_CHOICE" != "2" ]; do
-    read -r -p "  Enter 1 or 2 [1]: " LLM_CHOICE
+    read -r -p "  Enter 1 or 2 [1]: " LLM_CHOICE || LLM_CHOICE="1"
     if [ -z "$LLM_CHOICE" ]; then LLM_CHOICE="1"; fi
     if [ "$LLM_CHOICE" != "1" ] && [ "$LLM_CHOICE" != "2" ]; then
         warn "Please enter 1 or 2"
@@ -291,6 +291,7 @@ else
             else
                 warn "  Install from: https://github.com/ggml-org/llama.cpp#build"
             fi
+            exit 1
         fi
     fi
 fi
@@ -384,7 +385,7 @@ echo ""
 echo "  CLI search (with AI scoring):"
 if $USE_OLLAMA; then
     echo "    # Make sure Ollama is running: ollama serve"
-    echo "    python -m jobradar -q 'python developer' -p profile.yaml --llm-url http://localhost:11434"
+    echo "    python -m jobradar -q 'python developer' -p profile.yaml"
 else
     echo "    # Start llama-server first:"
     echo "    $LLAMA_BIN --model $MODEL_FILE --port 8080 --host 0.0.0.0"
