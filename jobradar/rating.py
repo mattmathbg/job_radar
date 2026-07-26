@@ -46,18 +46,26 @@ class AIRater:
             logger.info("LLM backend: %s (model: %s)", self.backend, LLM_MODEL)
 
     def _detect_ollama_model(self) -> Optional[str]:
-        """Pick the best model from Ollama's available models."""
+        """Pick the fastest available model from Ollama.
+
+        Priority: small models first (they're 5-10x faster on CPU).
+        qwen2.5:1.5b > qwen3:1.7b > qwen3:8b > anything else.
+        """
+        # Preferred models in speed order (fastest first)
+        _PREFERRED = ["qwen2.5:1.5b", "qwen3:1.7b", "qwen2.5-coder:1.5b", "qwen3:8b"]
         try:
             r = requests.get(f"{self.base_url}/api/tags", timeout=3)
             if r.status_code == 200:
                 models = r.json().get("models", [])
                 if models:
-                    # Prefer qwen3 if available, otherwise first model
-                    for m in models:
-                        name = m.get("name", "")
-                        if "qwen3" in name.lower():
-                            return name
-                    return models[0].get("name", "")
+                    available = {m.get("name", "") for m in models}
+                    # Try preferred list first
+                    for pref in _PREFERRED:
+                        if pref in available:
+                            return pref
+                    # Fall back to smallest model by size
+                    smallest = min(models, key=lambda m: m.get("size", float("inf")))
+                    return smallest.get("name", "")
         except Exception:
             pass
         return None
@@ -67,6 +75,7 @@ class AIRater:
 
         If a specific URL was given, try that first. Then fall back to
         scanning common localhost ports (11434, 8080, 1234).
+        Also measures response time to warn about slow models.
         """
         urls_to_try = []
 
@@ -85,6 +94,8 @@ class AIRater:
                 r = requests.get(f"{url}/api/tags", timeout=2)
                 if r.status_code == 200:
                     self.base_url = url
+                    # Quick speed test with smallest model
+                    self._warn_if_slow(url)
                     return "ollama"
             except Exception:
                 pass
@@ -108,6 +119,30 @@ class AIRater:
                 pass
 
         return None
+
+    def _warn_if_slow(self, url: str) -> None:
+        """Test model speed with a tiny request. Warn if >10s."""
+        import time
+        try:
+            start = time.time()
+            r = requests.post(
+                f"{url}/v1/chat/completions",
+                json={
+                    "model": LLM_MODEL,
+                    "messages": [{"role": "user", "content": "Say hi"}],
+                    "max_tokens": 5,
+                },
+                timeout=15,
+            )
+            elapsed = time.time() - start
+            if elapsed > 10:
+                logger.warning(
+                    "LLM is slow (%.0fs for a 5-token response). "
+                    "Consider using a smaller model: ollama pull qwen2.5:1.5b",
+                    elapsed,
+                )
+        except Exception:
+            pass
 
     def rate_jobs(self, jobs: List[Job], profile: Profile) -> List[Job]:
         """Rate a list of jobs concurrently (respecting max_concurrency)."""
@@ -149,10 +184,10 @@ class AIRater:
                         {"role": "user", "content": f"/no_think\n{prompt}"},
                     ],
                     "temperature": 0.2,
-                    "max_tokens": 800,
+                    "max_tokens": 300,
                     "stop": ["</tool_call>"],
                 },
-                timeout=120,
+                timeout=30,
             )
             resp.raise_for_status()
             msg = resp.json()["choices"][0]["message"]
@@ -165,6 +200,16 @@ class AIRater:
             content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
             content = re.sub(r'<think>.*', '', content, flags=re.DOTALL).strip()
             job = self._parse_response(content, job)
+        except requests.exceptions.Timeout:
+            job.score = 50
+            job.rating = "Timeout"
+            job.reasoning = f"LLM timed out after 30s (model too slow? try smaller model)"
+            logger.warning("Timeout rating %s @ %s", job.title, job.company)
+        except requests.exceptions.ConnectionError:
+            job.score = 50
+            job.rating = "LLM Offline"
+            job.reasoning = "Cannot connect to LLM server"
+            logger.warning("Connection error to %s", self.base_url)
         except Exception as e:
             job.score = 50
             job.rating = "⚠ Rating failed"
