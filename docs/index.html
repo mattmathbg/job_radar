@@ -25,6 +25,10 @@
       --text-dim: #4a4a5a;
       --accent: #22c55e;
       --accent-dim: rgba(34,197,94,0.12);
+      --purple: #a78bfa;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --blue: #60a5fa;
       --serif: 'Georgia', 'Times New Roman', serif;
       --sans: 'Inter', -apple-system, system-ui, sans-serif;
       --mono: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
@@ -73,7 +77,7 @@
     .hero::before {
       content: ''; position: absolute; top: -200px; right: -200px;
       width: 800px; height: 800px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(34,197,94,0.06) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(34,197,94,0.05) 0%, transparent 70%);
       pointer-events: none;
     }
     .hero-eyebrow {
@@ -86,16 +90,14 @@
       font-size: clamp(48px, 8vw, 96px); line-height: 1.05;
       letter-spacing: -0.02em; max-width: 800px;
     }
-    .hero h1 em {
-      font-style: italic; color: var(--accent);
-    }
+    .hero h1 em { font-style: italic; color: var(--accent); }
     .hero-sub {
       font-size: 18px; color: var(--text-muted); max-width: 520px;
       margin-top: 32px; line-height: 1.7;
     }
     .hero-sub strong { color: var(--text); font-weight: 500; }
 
-    /* ── INSTALL BOX ── */
+    /* ── INSTALL ── */
     .install-section { margin-top: 48px; }
     .install-label {
       font-family: var(--mono); font-size: 11px; font-weight: 500;
@@ -123,55 +125,35 @@
       transition: all 0.2s; white-space: nowrap;
     }
     .install-box .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-    .platform-tabs {
-      display: flex; gap: 0; margin-top: 16px;
-    }
+    .platform-tabs { display: flex; gap: 0; margin-top: 16px; }
     .platform-tab {
       font-family: var(--mono); font-size: 11px; font-weight: 500;
       letter-spacing: 0.08em; text-transform: uppercase;
       padding: 8px 16px; border: 1px solid var(--border);
-      color: var(--text-dim); background: transparent; cursor: pointer;
-      transition: all 0.2s;
+      color: var(--text-dim); background: transparent; cursor: pointer; transition: all 0.2s;
     }
     .platform-tab:first-child { border-right: none; }
     .platform-tab.active { background: var(--bg-card); color: var(--text); border-color: var(--border-hover); }
     .platform-tab:hover:not(.active) { color: var(--text-muted); }
 
     /* ── DIVIDER ── */
-    .divider {
-      width: 100%; height: 1px; background: var(--border);
-      margin: 0;
-    }
+    .divider { width: 100%; height: 1px; background: var(--border); margin: 0; }
 
     /* ── STATS ── */
-    .stats {
-      display: grid; grid-template-columns: repeat(4, 1fr);
-      border-bottom: 1px solid var(--border);
-    }
-    .stat {
-      padding: 48px 32px; text-align: center;
-      border-right: 1px solid var(--border);
-    }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--border); }
+    .stat { padding: 48px 32px; text-align: center; border-right: 1px solid var(--border); }
     .stat:last-child { border-right: none; }
-    .stat-num {
-      font-family: var(--serif); font-size: 48px; font-weight: 300;
-      color: var(--accent); letter-spacing: -0.02em;
-    }
+    .stat-num { font-family: var(--serif); font-size: 48px; font-weight: 300; color: var(--accent); letter-spacing: -0.02em; }
     .stat-label {
       font-family: var(--mono); font-size: 11px; font-weight: 500;
-      letter-spacing: 0.15em; text-transform: uppercase;
-      color: var(--text-dim); margin-top: 8px;
+      letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); margin-top: 8px;
     }
 
     /* ── SECTIONS ── */
-    .section {
-      padding: clamp(60px, 8vw, 120px) clamp(24px, 8vw, 160px);
-    }
+    .section { padding: clamp(60px, 8vw, 120px) clamp(24px, 8vw, 160px); }
     .section-eyebrow {
       font-family: var(--mono); font-size: 11px; font-weight: 500;
-      letter-spacing: 0.2em; text-transform: uppercase;
-      color: var(--text-dim); margin-bottom: 16px;
+      letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 16px;
     }
     .section-title {
       font-family: var(--serif); font-weight: 300;
@@ -179,71 +161,104 @@
       letter-spacing: -0.02em; margin-bottom: 64px;
     }
 
-    /* ── FEATURE GRID ── */
-    .features {
-      display: grid; grid-template-columns: repeat(3, 1fr);
-      gap: 1px; background: var(--border);
+    /* ── TERMINAL MOCKUP ── */
+    .terminal-section { padding: clamp(60px, 8vw, 120px) clamp(24px, 8vw, 160px); }
+    .terminal {
+      background: #0d1117; border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px; overflow: hidden; max-width: 900px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
     }
-    .feature {
-      background: var(--bg); padding: 48px 40px;
-      transition: background 0.3s;
+    .terminal-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px; background: #161b22; border-bottom: 1px solid rgba(255,255,255,0.06);
     }
+    .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .terminal-dot.red { background: #ff5f57; }
+    .terminal-dot.yellow { background: #febc2e; }
+    .terminal-dot.green { background: #28c840; }
+    .terminal-title {
+      font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+      margin-left: 8px;
+    }
+    .terminal-body {
+      padding: 20px 24px; font-family: var(--mono); font-size: 13px;
+      line-height: 1.8; overflow-x: auto;
+    }
+    .terminal-body .prompt { color: var(--accent); }
+    .terminal-body .cmd { color: var(--text); }
+    .terminal-body .comment { color: var(--text-dim); }
+    .terminal-body .dim { color: var(--text-dim); }
+    .terminal-body .source { color: var(--blue); }
+    .terminal-body .score-high { color: var(--accent); font-weight: 600; }
+    .terminal-body .score-mid { color: var(--yellow); font-weight: 600; }
+    .terminal-body .score-low { color: var(--red); font-weight: 600; }
+    .terminal-body .title { color: var(--text); font-weight: 500; }
+    .terminal-body .company { color: var(--purple); }
+    .terminal-body .url { color: var(--text-dim); font-size: 11px; }
+
+    /* ── PROFILE EXAMPLE ── */
+    .profile-section {
+      padding: clamp(60px, 8vw, 120px) clamp(24px, 8vw, 160px);
+      border-top: 1px solid var(--border);
+    }
+    .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+    .profile-text h3 {
+      font-family: var(--serif); font-weight: 400;
+      font-size: 28px; line-height: 1.2; margin-bottom: 16px;
+    }
+    .profile-text p { font-size: 15px; color: var(--text-muted); line-height: 1.7; }
+    .yaml-block {
+      background: var(--bg-card); border: 1px solid var(--border);
+      padding: 24px; font-family: var(--mono); font-size: 13px;
+      line-height: 1.8; overflow-x: auto;
+    }
+    .yaml-block .key { color: var(--purple); }
+    .yaml-block .val { color: var(--accent); }
+    .yaml-block .str { color: var(--text-muted); }
+    .yaml-block .comment { color: var(--text-dim); }
+
+    /* ── FEATURES ── */
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); }
+    .feature { background: var(--bg); padding: 48px 40px; transition: background 0.3s; }
     .feature:hover { background: var(--bg-card); }
     .feature-num {
       font-family: var(--mono); font-size: 11px; font-weight: 600;
       letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 20px;
     }
-    .feature h3 {
-      font-family: var(--serif); font-weight: 400;
-      font-size: 24px; line-height: 1.2; margin-bottom: 16px;
-    }
-    .feature p {
-      font-size: 14px; color: var(--text-muted); line-height: 1.7;
-    }
+    .feature h3 { font-family: var(--serif); font-weight: 400; font-size: 24px; line-height: 1.2; margin-bottom: 16px; }
+    .feature p { font-size: 14px; color: var(--text-muted); line-height: 1.7; }
 
-    /* ── SOURCES TABLE ── */
-    .sources-table {
-      width: 100%; border-collapse: collapse;
-    }
+    /* ── SOURCES ── */
+    .sources-table { width: 100%; border-collapse: collapse; }
     .sources-table th {
       font-family: var(--mono); font-size: 11px; font-weight: 600;
       letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--text-dim); text-align: left;
-      padding: 16px 24px; border-bottom: 1px solid var(--border);
+      color: var(--text-dim); text-align: left; padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
     }
-    .sources-table td {
-      padding: 20px 24px; border-bottom: 1px solid var(--border);
-      font-size: 14px; vertical-align: middle;
-    }
+    .sources-table td { padding: 20px 24px; border-bottom: 1px solid var(--border); font-size: 14px; }
     .sources-table tr:hover td { background: var(--bg-card); }
     .sources-table .source-name { font-weight: 500; }
     .sources-table .source-type {
       font-family: var(--mono); font-size: 11px; font-weight: 600;
       letter-spacing: 0.06em; text-transform: uppercase;
-      padding: 4px 10px; border: 1px solid var(--border);
-      display: inline-block;
+      padding: 4px 10px; border: 1px solid var(--border); display: inline-block;
     }
     .sources-table .source-type.api { color: var(--accent); border-color: rgba(34,197,94,0.3); }
-    .sources-table .source-type.ats { color: #a78bfa; border-color: rgba(167,139,250,0.3); }
-    .sources-table .source-type.scrape { color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+    .sources-table .source-type.ats { color: var(--purple); border-color: rgba(167,139,250,0.3); }
+    .sources-table .source-type.scrape { color: var(--yellow); border-color: rgba(245,158,11,0.3); }
     .sources-table .source-note { color: var(--text-muted); }
 
-    /* ── HOW IT WORKS ── */
+    /* ── STEPS ── */
     .steps { display: flex; flex-direction: column; gap: 1px; background: var(--border); }
     .step {
       display: grid; grid-template-columns: 80px 1fr; gap: 32px;
-      background: var(--bg); padding: 32px 40px;
-      transition: background 0.3s;
+      background: var(--bg); padding: 32px 40px; transition: background 0.3s;
     }
     .step:hover { background: var(--bg-card); }
-    .step-num {
-      font-family: var(--mono); font-size: 32px; font-weight: 300;
-      color: var(--text-dim);
-    }
-    .step-content h3 {
-      font-family: var(--serif); font-weight: 400;
-      font-size: 20px; margin-bottom: 8px;
-    }
+    .step-num { font-family: var(--mono); font-size: 32px; font-weight: 300; color: var(--text-dim); }
+    .step-content h3 { font-family: var(--serif); font-weight: 400; font-size: 20px; margin-bottom: 8px; }
+    .step-content p { font-size: 14px; color: var(--text-muted); }
     .step-content code {
       display: block; font-family: var(--mono); font-size: 13px;
       color: var(--text-muted); background: var(--bg-elevated);
@@ -260,8 +275,7 @@
     .philosophy blockquote {
       font-family: var(--serif); font-style: italic;
       font-size: clamp(24px, 4vw, 40px); line-height: 1.4;
-      color: var(--text); max-width: 700px; margin: 0 auto;
-      font-weight: 300;
+      color: var(--text); max-width: 700px; margin: 0 auto; font-weight: 300;
     }
     .philosophy cite {
       display: block; font-family: var(--mono); font-style: normal;
@@ -279,10 +293,7 @@
       font-size: clamp(36px, 6vw, 64px); line-height: 1.1;
       letter-spacing: -0.02em; margin-bottom: 24px;
     }
-    .cta p {
-      font-size: 16px; color: var(--text-muted); max-width: 480px;
-      margin: 0 auto 48px;
-    }
+    .cta p { font-size: 16px; color: var(--text-muted); max-width: 480px; margin: 0 auto 48px; }
     .cta-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
     .btn-primary {
       font-family: var(--mono); font-size: 13px; font-weight: 600;
@@ -304,8 +315,7 @@
       display: flex; align-items: center; justify-content: space-between;
       padding: 24px clamp(24px, 4vw, 80px);
       border-top: 1px solid var(--border);
-      font-family: var(--mono); font-size: 11px; color: var(--text-dim);
-      letter-spacing: 0.06em;
+      font-family: var(--mono); font-size: 11px; color: var(--text-dim); letter-spacing: 0.06em;
     }
     .footer a { transition: color 0.2s; }
     .footer a:hover { color: var(--text-muted); }
@@ -319,6 +329,7 @@
       .features { grid-template-columns: 1fr; }
       .step { grid-template-columns: 1fr; gap: 16px; }
       .step-num { font-size: 24px; }
+      .profile-grid { grid-template-columns: 1fr; }
       .footer { flex-direction: column; gap: 12px; text-align: center; }
     }
   </style>
@@ -327,14 +338,11 @@
 
   <!-- NAV -->
   <nav class="nav">
-    <div class="nav-brand">
-      <div class="dot"></div>
-      JobRadar
-    </div>
+    <div class="nav-brand"><div class="dot"></div>JobRadar</div>
     <div class="nav-links">
       <a href="#features">Features</a>
       <a href="#sources">Sources</a>
-      <a href="#install">Install</a>
+      <a href="#how">Install</a>
     </div>
     <a href="https://github.com/ANIRudH-lab-life/job-radar" target="_blank" class="nav-cta">GitHub</a>
   </nav>
@@ -349,8 +357,8 @@
     <div class="install-section">
       <p class="install-label">Quick install</p>
       <div class="platform-tabs">
-        <button class="platform-tab active" onclick="switchTab('linux')">Linux / macOS</button>
-        <button class="platform-tab" onclick="switchTab('windows')">Windows</button>
+        <button class="platform-tab active" onclick="switchTab('linux',this)">Linux / macOS</button>
+        <button class="platform-tab" onclick="switchTab('windows',this)">Windows</button>
       </div>
       <div class="install-box" id="install-linux" onclick="copyCommand('linux')">
         <span class="prompt">$</span>
@@ -369,23 +377,79 @@
 
   <!-- STATS -->
   <section class="stats">
-    <div class="stat">
-      <div class="stat-num">8</div>
-      <div class="stat-label">Job Sources</div>
-    </div>
-    <div class="stat">
-      <div class="stat-num">0</div>
-      <div class="stat-label">Cloud APIs</div>
-    </div>
-    <div class="stat">
-      <div class="stat-num">1.1</div>
-      <div class="stat-label">GB Model</div>
-    </div>
-    <div class="stat">
-      <div class="stat-num">$0</div>
-      <div class="stat-label">Monthly Cost</div>
+    <div class="stat"><div class="stat-num">8</div><div class="stat-label">Job Sources</div></div>
+    <div class="stat"><div class="stat-num">0</div><div class="stat-label">Cloud APIs</div></div>
+    <div class="stat"><div class="stat-num">1.1</div><div class="stat-label">GB Model</div></div>
+    <div class="stat"><div class="stat-num">$0</div><div class="stat-label">Monthly Cost</div></div>
+  </section>
+
+  <!-- TERMINAL DEMO -->
+  <section class="terminal-section" id="demo">
+    <p class="section-eyebrow">In action</p>
+    <h2 class="section-title" style="margin-bottom:40px">See what it looks like.</h2>
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="terminal-dot red"></div>
+        <div class="terminal-dot yellow"></div>
+        <div class="terminal-dot green"></div>
+        <span class="terminal-title">jobradar -- search results</span>
+      </div>
+      <div class="terminal-body">
+        <span class="dim">Searching 8 sources...</span><br>
+        <span class="source">Remotive</span> <span class="dim">|</span> <span class="source">Arbeitnow</span> <span class="dim">|</span> <span class="source">RemoteOK</span> <span class="dim">|</span> <span class="source">Jobicy</span> <span class="dim">|</span> <span class="source">Himalayas</span> <span class="dim">|</span> <span class="source">Greenhouse</span> <span class="source">Ashby</span><br>
+        <span class="dim">Found 847 jobs. Scoring with qwen3:1.7b (Ollama)...</span><br><br>
+        <span class="score-high"> 95</span> <span class="title">Senior Python Developer</span> <span class="company">@ GitLab</span><br>
+        <span class="url">  https://boards.greenhouse.io/gitlab/jobs/4582910</span><br><br>
+        <span class="score-high"> 91</span> <span class="title">Backend Engineer (Python/Go)</span> <span class="company">@ Linear</span><br>
+        <span class="url">  https://jobs.lever.co/linear/abc123</span><br><br>
+        <span class="score-high"> 88</span> <span class="title">Full Stack Developer</span> <span class="company">@ Stripe</span><br>
+        <span class="url">  https://boards.greenhouse.io/stripe/jobs/7890123</span><br><br>
+        <span class="score-mid"> 72</span> <span class="title">Software Engineer</span> <span class="company">@ Shopify</span><br>
+        <span class="url">  https://shopify.engineering/careers/456</span><br><br>
+        <span class="score-low"> 45</span> <span class="title">DevOps Engineer</span> <span class="company">@ Vercel</span><br>
+        <span class="url">  https://vercel.com/careers/devops-789</span><br><br>
+        <span class="dim">Showing 5 of 127 scored jobs. Cache: 716 filtered (seen).</span><br>
+        <span class="dim">Pipeline: dashboard running at localhost:3000</span>
+      </div>
     </div>
   </section>
+
+  <div class="divider"></div>
+
+  <!-- PROFILE -->
+  <section class="profile-section">
+    <p class="section-eyebrow">Your profile</p>
+    <h2 class="section-title">One YAML file.<br>Every search uses it.</h2>
+    <div class="profile-grid">
+      <div class="profile-text">
+        <h3>Tell it who you are. It scores every job against that.</h3>
+        <p>Define your skills, experience level, salary range, preferred locations, and remote preferences once. Every search run uses this profile to score and rank listings. Change it anytime -- the next search picks it up automatically.</p>
+        <p style="margin-top:16px">The LLM reads both the job listing and your profile, then scores on four axes: skills match, experience fit, salary alignment, and remote compatibility. Each score includes a plain-English explanation of why.</p>
+      </div>
+      <div class="yaml-block">
+        <span class="comment"># profile.yaml</span><br><br>
+        <span class="key">desired_roles:</span><br>
+        <span class="str">  - "Python Developer"</span><br>
+        <span class="str">  - "Backend Engineer"</span><br>
+        <span class="str">  - "Full Stack Developer"</span><br><br>
+        <span class="key">experience_level:</span> <span class="val">"senior"</span><br><br>
+        <span class="key">skills:</span><br>
+        <span class="str">  - Python</span><br>
+        <span class="str">  - FastAPI</span><br>
+        <span class="str">  - PostgreSQL</span><br>
+        <span class="str">  - React</span><br>
+        <span class="str">  - Docker</span><br>
+        <span class="str">  - AWS</span><br><br>
+        <span class="key">salary:</span><br>
+        <span class="key">  min:</span> <span class="val">120000</span><br>
+        <span class="key">  currency:</span> <span class="val">"USD"</span><br><br>
+        <span class="key">location_preference:</span> <span class="val">"remote"</span><br>
+        <span class="key">remote_ok:</span> <span class="val">true</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
 
   <!-- FEATURES -->
   <section class="section" id="features">
@@ -432,13 +496,7 @@
     <p class="section-eyebrow">Data sources</p>
     <h2 class="section-title">8 sources. One search.</h2>
     <table class="sources-table">
-      <thead>
-        <tr>
-          <th>Source</th>
-          <th>Type</th>
-          <th>Notes</th>
-        </tr>
-      </thead>
+      <thead><tr><th>Source</th><th>Type</th><th>Notes</th></tr></thead>
       <tbody>
         <tr><td class="source-name">Remotive</td><td><span class="source-type api">API</span></td><td class="source-note">Remote jobs, up to 1000 per request</td></tr>
         <tr><td class="source-name">Arbeitnow</td><td><span class="source-type api">API</span></td><td class="source-note">Worldwide, paginated, 100 per page</td></tr>
@@ -455,7 +513,7 @@
   <div class="divider"></div>
 
   <!-- HOW IT WORKS -->
-  <section class="section" id="install">
+  <section class="section" id="how">
     <p class="section-eyebrow">Getting started</p>
     <h2 class="section-title">Running in four steps.</h2>
     <div class="steps">
@@ -463,7 +521,7 @@
         <div class="step-num">01</div>
         <div class="step-content">
           <h3>Clone and install</h3>
-          <p style="font-size:14px;color:var(--text-muted)">The installer checks everything before downloading. Safe to re-run.</p>
+          <p>The installer checks everything before downloading. Safe to re-run.</p>
           <code><span class="prompt">$</span> git clone https://github.com/ANIRudH-lab-life/job-radar && cd job-radar && bash setup.sh</code>
         </div>
       </div>
@@ -471,7 +529,7 @@
         <div class="step-num">02</div>
         <div class="step-content">
           <h3>Choose your AI backend</h3>
-          <p style="font-size:14px;color:var(--text-muted)">Ollama (recommended) or llama.cpp. The installer handles the model download.</p>
+          <p>Ollama (recommended) or llama.cpp. The installer handles the model download.</p>
           <code><span class="prompt">$</span> ollama pull qwen3:1.7b</code>
         </div>
       </div>
@@ -479,7 +537,7 @@
         <div class="step-num">03</div>
         <div class="step-content">
           <h3>Search and score</h3>
-          <p style="font-size:14px;color:var(--text-muted)">Define your profile, run a search. Every listing gets scored against your background.</p>
+          <p>Define your profile, run a search. Every listing gets scored against your background.</p>
           <code><span class="prompt">$</span> python -m jobradar -q "python developer" -p profile.yaml</code>
         </div>
       </div>
@@ -487,7 +545,7 @@
         <div class="step-num">04</div>
         <div class="step-content">
           <h3>Track in the dashboard</h3>
-          <p style="font-size:14px;color:var(--text-muted)">Move jobs through a pipeline: Discovered, Reviewing, Applied, Interviewing.</p>
+          <p>Move jobs through a pipeline: Discovered, Reviewing, Applied, Interviewing.</p>
           <code><span class="prompt">$</span> cd dashboard && bash run.sh &nbsp;# localhost:3000</code>
         </div>
       </div>
@@ -496,9 +554,7 @@
 
   <!-- PHILOSOPHY -->
   <section class="philosophy">
-    <blockquote>
-      "You are the loop. The AI is just the filter."
-    </blockquote>
+    <blockquote>"You are the loop. The AI is just the filter."</blockquote>
     <cite>The JobRadar Philosophy</cite>
   </section>
 
@@ -520,11 +576,11 @@
   </footer>
 
   <script>
-    function switchTab(os) {
+    function switchTab(os, el) {
       document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
       document.getElementById('install-linux').style.display = os === 'linux' ? 'inline-flex' : 'none';
       document.getElementById('install-windows').style.display = os === 'windows' ? 'inline-flex' : 'none';
-      event.target.classList.add('active');
     }
     function copyCommand(os) {
       const cmds = {
