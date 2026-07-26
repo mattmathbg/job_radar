@@ -197,6 +197,10 @@ def search_jobs(
     if export_path:
         fmt = "csv" if export_path.endswith(".csv") else "json"
         export_results(all_jobs, export_path, fmt)
+    else:
+        # Auto-save to results.csv in current directory
+        auto_path = os.path.join(os.getcwd(), "results.csv")
+        export_results(all_jobs, auto_path, "csv")
 
     # Step 5: Update cache with displayed jobs
     if cache:
