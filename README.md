@@ -107,7 +107,7 @@ cd dashboard && bash run.sh   # Windows: python -m uvicorn app:app --port 3000
 # Start the LLM server (for AI scoring)
 # Option A: Ollama (recommended)
 ollama serve &                              # if not already running
-python -m jobradar -q "python dev" -p profile.yaml --llm-url http://localhost:11434
+python -m jobradar -q "python dev" -p profile.yaml
 
 # Option B: llama.cpp (faster)
 llama-server --model models/qwen3-1.7b-q4_k_m.gguf --port 8080
@@ -223,7 +223,7 @@ Then open http://localhost:3000.
 | `--clear-cache` | — | Clear cache and exit |
 | `--list-ats-companies` | — | Show configured ATS companies |
 | `--enable-linkedin` | off | ⚠️ Enable LinkedIn scraping |
-| `--llm-url` | `localhost:8080` | LLM server URL (auto-detects Ollama or llama.cpp) |
+| `--llm-url` | *(auto-detect)* | LLM server URL (auto-scans 11434, 8080, 1234) |
 
 ## Architecture
 
