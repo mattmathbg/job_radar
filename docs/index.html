@@ -3,349 +3,540 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JobRadar — Hunt Smarter. Not Harder.</title>
-  <meta name="description" content="Open-source job search agent that scores listings with local AI. 8 boards. Zero cloud. Your data stays yours.">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/framer-motion@11/dist/framer-motion.js"></script>
+  <title>JobRadar — Local AI Job Search Agent</title>
+  <meta name="description" content="JobRadar searches 8 job boards concurrently and scores every listing with a local LLM. No cloud. No subscriptions. Your data stays yours.">
+  <meta property="og:title" content="JobRadar — Local AI Job Search Agent">
+  <meta property="og:description" content="Searches 8 job boards. Scores with local AI. Zero cloud.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#0a0a0f">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    * { font-family: 'JetBrains Mono', monospace; }
-    ::selection { background: #22c55e; color: #000; }
-    @keyframes scanline {
-      0% { transform: translateY(-100vh); }
-      100% { transform: translateY(100vh); }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --bg-card: #111118;
+      --bg-elevated: #16161f;
+      --border: rgba(255,255,255,0.06);
+      --border-hover: rgba(255,255,255,0.12);
+      --text: #e8e8ed;
+      --text-muted: #6b6b7b;
+      --text-dim: #4a4a5a;
+      --accent: #22c55e;
+      --accent-dim: rgba(34,197,94,0.12);
+      --serif: 'Georgia', 'Times New Roman', serif;
+      --sans: 'Inter', -apple-system, system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
     }
-    .scanline-effect::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to bottom, transparent 50%, rgba(0, 255, 0, 0.03) 51%, transparent 100%);
-      background-size: 100% 4px;
+
+    html { background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+    body { font-family: var(--sans); line-height: 1.6; }
+    a { color: inherit; text-decoration: none; }
+    ::selection { background: var(--accent); color: #000; }
+
+    /* ── NAV ── */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 clamp(24px, 4vw, 80px); height: 64px;
+      background: rgba(10,10,15,0.8); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand {
+      font-family: var(--mono); font-size: 14px; font-weight: 600;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .nav-brand .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; }
+    .nav-links { display: flex; gap: 32px; }
+    .nav-links a {
+      font-family: var(--mono); font-size: 12px; font-weight: 500;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--text-muted); transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      font-family: var(--mono); font-size: 12px; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 8px 20px; border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .nav-cta:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh; display: flex; flex-direction: column;
+      justify-content: center; padding: 120px clamp(24px, 8vw, 160px) 80px;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: ''; position: absolute; top: -200px; right: -200px;
+      width: 800px; height: 800px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(34,197,94,0.06) 0%, transparent 70%);
       pointer-events: none;
-      z-index: 50;
     }
-    .glitch-hover:hover {
-      animation: glitch-anim 0.2s infinite;
-      color: #0f0;
+    .hero-eyebrow {
+      font-family: var(--mono); font-size: 12px; font-weight: 500;
+      letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 32px;
     }
-    @keyframes glitch-anim {
-      0% { text-shadow: 2px 2px #0f0, -2px -2px #f0f; }
-      25% { text-shadow: -2px 2px #0f0, 2px -2px #f0f; }
-      50% { text-shadow: 2px -2px #0f0, -2px 2px #f0f; }
-      75% { text-shadow: -2px -2px #0f0, 2px 2px #f0f; }
-      100% { text-shadow: 2px 2px #0f0, -2px -2px #f0f; }
+    .hero h1 {
+      font-family: var(--serif); font-weight: 300;
+      font-size: clamp(48px, 8vw, 96px); line-height: 1.05;
+      letter-spacing: -0.02em; max-width: 800px;
     }
-    .moving-grid {
-      background-size: 40px 40px;
-      background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
-                        linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
-      animation: moveGrid 20s linear infinite;
+    .hero h1 em {
+      font-style: italic; color: var(--accent);
     }
-    @keyframes moveGrid {
-      0% { transform: translateY(0); }
-      100% { transform: translateY(40px); }
+    .hero-sub {
+      font-size: 18px; color: var(--text-muted); max-width: 520px;
+      margin-top: 32px; line-height: 1.7;
     }
-    @keyframes marquee {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(-50%); }
+    .hero-sub strong { color: var(--text); font-weight: 500; }
+
+    /* ── INSTALL BOX ── */
+    .install-section { margin-top: 48px; }
+    .install-label {
+      font-family: var(--mono); font-size: 11px; font-weight: 500;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--text-dim); margin-bottom: 12px;
     }
-    .marquee-scroll { animation: marquee 20s linear infinite; }
-    .terminal-cursor::after {
-      content: "█";
-      animation: blink 1s step-end infinite;
+    .install-box {
+      display: inline-flex; align-items: center; gap: 16px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      padding: 14px 20px; max-width: 100%; cursor: pointer;
+      transition: border-color 0.2s;
     }
-    @keyframes blink { 50% { opacity: 0; } }
+    .install-box:hover { border-color: var(--border-hover); }
+    .install-box .prompt { color: var(--accent); font-family: var(--mono); font-size: 14px; }
+    .install-box code {
+      font-family: var(--mono); font-size: 14px; color: var(--text-muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .install-box code span { color: var(--text); }
+    .install-box .copy-btn {
+      font-family: var(--mono); font-size: 11px; font-weight: 600;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 6px 12px; border: 1px solid var(--border);
+      color: var(--text-dim); background: transparent; cursor: pointer;
+      transition: all 0.2s; white-space: nowrap;
+    }
+    .install-box .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .platform-tabs {
+      display: flex; gap: 0; margin-top: 16px;
+    }
+    .platform-tab {
+      font-family: var(--mono); font-size: 11px; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 8px 16px; border: 1px solid var(--border);
+      color: var(--text-dim); background: transparent; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .platform-tab:first-child { border-right: none; }
+    .platform-tab.active { background: var(--bg-card); color: var(--text); border-color: var(--border-hover); }
+    .platform-tab:hover:not(.active) { color: var(--text-muted); }
+
+    /* ── DIVIDER ── */
+    .divider {
+      width: 100%; height: 1px; background: var(--border);
+      margin: 0;
+    }
+
+    /* ── STATS ── */
+    .stats {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat {
+      padding: 48px 32px; text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .stat:last-child { border-right: none; }
+    .stat-num {
+      font-family: var(--serif); font-size: 48px; font-weight: 300;
+      color: var(--accent); letter-spacing: -0.02em;
+    }
+    .stat-label {
+      font-family: var(--mono); font-size: 11px; font-weight: 500;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--text-dim); margin-top: 8px;
+    }
+
+    /* ── SECTIONS ── */
+    .section {
+      padding: clamp(60px, 8vw, 120px) clamp(24px, 8vw, 160px);
+    }
+    .section-eyebrow {
+      font-family: var(--mono); font-size: 11px; font-weight: 500;
+      letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--text-dim); margin-bottom: 16px;
+    }
+    .section-title {
+      font-family: var(--serif); font-weight: 300;
+      font-size: clamp(32px, 5vw, 56px); line-height: 1.1;
+      letter-spacing: -0.02em; margin-bottom: 64px;
+    }
+
+    /* ── FEATURE GRID ── */
+    .features {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1px; background: var(--border);
+    }
+    .feature {
+      background: var(--bg); padding: 48px 40px;
+      transition: background 0.3s;
+    }
+    .feature:hover { background: var(--bg-card); }
+    .feature-num {
+      font-family: var(--mono); font-size: 11px; font-weight: 600;
+      letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 20px;
+    }
+    .feature h3 {
+      font-family: var(--serif); font-weight: 400;
+      font-size: 24px; line-height: 1.2; margin-bottom: 16px;
+    }
+    .feature p {
+      font-size: 14px; color: var(--text-muted); line-height: 1.7;
+    }
+
+    /* ── SOURCES TABLE ── */
+    .sources-table {
+      width: 100%; border-collapse: collapse;
+    }
+    .sources-table th {
+      font-family: var(--mono); font-size: 11px; font-weight: 600;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-dim); text-align: left;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+    }
+    .sources-table td {
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+      font-size: 14px; vertical-align: middle;
+    }
+    .sources-table tr:hover td { background: var(--bg-card); }
+    .sources-table .source-name { font-weight: 500; }
+    .sources-table .source-type {
+      font-family: var(--mono); font-size: 11px; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 4px 10px; border: 1px solid var(--border);
+      display: inline-block;
+    }
+    .sources-table .source-type.api { color: var(--accent); border-color: rgba(34,197,94,0.3); }
+    .sources-table .source-type.ats { color: #a78bfa; border-color: rgba(167,139,250,0.3); }
+    .sources-table .source-type.scrape { color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+    .sources-table .source-note { color: var(--text-muted); }
+
+    /* ── HOW IT WORKS ── */
+    .steps { display: flex; flex-direction: column; gap: 1px; background: var(--border); }
+    .step {
+      display: grid; grid-template-columns: 80px 1fr; gap: 32px;
+      background: var(--bg); padding: 32px 40px;
+      transition: background 0.3s;
+    }
+    .step:hover { background: var(--bg-card); }
+    .step-num {
+      font-family: var(--mono); font-size: 32px; font-weight: 300;
+      color: var(--text-dim);
+    }
+    .step-content h3 {
+      font-family: var(--serif); font-weight: 400;
+      font-size: 20px; margin-bottom: 8px;
+    }
+    .step-content code {
+      display: block; font-family: var(--mono); font-size: 13px;
+      color: var(--text-muted); background: var(--bg-elevated);
+      padding: 12px 16px; margin-top: 12px; border: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .step-content code .prompt { color: var(--accent); }
+
+    /* ── PHILOSOPHY ── */
+    .philosophy {
+      text-align: center; padding: clamp(80px, 10vw, 160px) clamp(24px, 8vw, 160px);
+      border-top: 1px solid var(--border);
+    }
+    .philosophy blockquote {
+      font-family: var(--serif); font-style: italic;
+      font-size: clamp(24px, 4vw, 40px); line-height: 1.4;
+      color: var(--text); max-width: 700px; margin: 0 auto;
+      font-weight: 300;
+    }
+    .philosophy cite {
+      display: block; font-family: var(--mono); font-style: normal;
+      font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--text-dim); margin-top: 32px;
+    }
+
+    /* ── CTA ── */
+    .cta {
+      text-align: center; padding: clamp(80px, 10vw, 160px) 24px;
+      border-top: 1px solid var(--border);
+    }
+    .cta h2 {
+      font-family: var(--serif); font-weight: 300;
+      font-size: clamp(36px, 6vw, 64px); line-height: 1.1;
+      letter-spacing: -0.02em; margin-bottom: 24px;
+    }
+    .cta p {
+      font-size: 16px; color: var(--text-muted); max-width: 480px;
+      margin: 0 auto 48px;
+    }
+    .cta-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      font-family: var(--mono); font-size: 13px; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 14px 32px; background: var(--accent); color: #000;
+      border: none; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-primary:hover { background: #16a34a; }
+    .btn-secondary {
+      font-family: var(--mono); font-size: 13px; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 14px 32px; background: transparent; color: var(--text);
+      border: 1px solid var(--border); cursor: pointer; transition: all 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--border-hover); }
+
+    /* ── FOOTER ── */
+    .footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 24px clamp(24px, 4vw, 80px);
+      border-top: 1px solid var(--border);
+      font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+      letter-spacing: 0.06em;
+    }
+    .footer a { transition: color 0.2s; }
+    .footer a:hover { color: var(--text-muted); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .stat { border-bottom: 1px solid var(--border); }
+      .stat:nth-child(2) { border-right: none; }
+      .features { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 1fr; gap: 16px; }
+      .step-num { font-size: 24px; }
+      .footer { flex-direction: column; gap: 12px; text-align: center; }
+    }
   </style>
 </head>
-<body class="bg-[#050505] text-white">
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-    const { motion, useAnimation } = window["framer-motion"] || {};
+<body>
 
-    const FramerDiv = motion?.div || 'div';
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <div class="dot"></div>
+      JobRadar
+    </div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#sources">Sources</a>
+      <a href="#install">Install</a>
+    </div>
+    <a href="https://github.com/ANIRudH-lab-life/job-radar" target="_blank" class="nav-cta">GitHub</a>
+  </nav>
 
-    const JobRadarLanding = () => {
-      const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-      const [copied, setCopied] = useState(false);
+  <!-- HERO -->
+  <header class="hero">
+    <p class="hero-eyebrow">Open Source &middot; MIT License &middot; Local AI</p>
+    <h1>Search <em>everywhere.</em><br>Score <em>locally.</em></h1>
+    <p class="hero-sub">
+      A job search agent that hunts across 8 sources at once, scores every listing against your profile with a local language model, and never sends your data to the cloud.
+    </p>
+    <div class="install-section">
+      <p class="install-label">Quick install</p>
+      <div class="platform-tabs">
+        <button class="platform-tab active" onclick="switchTab('linux')">Linux / macOS</button>
+        <button class="platform-tab" onclick="switchTab('windows')">Windows</button>
+      </div>
+      <div class="install-box" id="install-linux" onclick="copyCommand('linux')">
+        <span class="prompt">$</span>
+        <code>curl -fsSL https://raw.githubusercontent.com/<span>ANIRudH-lab-life/job-radar/main/setup.sh</span> | bash</code>
+        <button class="copy-btn" id="copy-linux">Copy</button>
+      </div>
+      <div class="install-box" id="install-windows" style="display:none" onclick="copyCommand('windows')">
+        <span class="prompt">PS&gt;</span>
+        <code>git clone https://github.com/<span>ANIRudH-lab-life/job-radar</span> &amp;&amp; cd job-radar &amp;&amp; .\setup.ps1</code>
+        <button class="copy-btn" id="copy-windows">Copy</button>
+      </div>
+    </div>
+  </header>
 
-      useEffect(() => {
-        const handleMouseMove = (e) => {
-          setMousePosition({ x: e.clientX, y: e.clientY });
-        };
-        window.addEventListener("mousemove", handleMouseMove);
-        return () => window.removeEventListener("mousemove", handleMouseMove);
-      }, []);
+  <div class="divider"></div>
 
-      const copyInstall = () => {
-        navigator.clipboard.writeText("curl -fsSL https://raw.githubusercontent.com/ANIRudH-lab-life/job-radar/main/setup.sh | bash");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      };
+  <!-- STATS -->
+  <section class="stats">
+    <div class="stat">
+      <div class="stat-num">8</div>
+      <div class="stat-label">Job Sources</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">0</div>
+      <div class="stat-label">Cloud APIs</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">1.1</div>
+      <div class="stat-label">GB Model</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">$0</div>
+      <div class="stat-label">Monthly Cost</div>
+    </div>
+  </section>
 
-      const features = [
-        { icon: "⚡", title: "100% Local Processing", desc: "Auto-detects Ollama or llama.cpp. Scores each job 0-100 on skills, experience, and remote fit entirely on your machine. Your data never leaves.", color: "blue" },
-        { icon: "📡", title: "8 Free Sources", desc: "Remotive, Arbeitnow, RemoteOK, Jobicy, Himalayas, Greenhouse ATS, Ashby ATS, and LinkedIn (opt-in). All concurrent.", color: "purple" },
-        { icon: "🔒", title: "Zero Cloud Dependencies", desc: "No API keys. No subscriptions. No data leaving your laptop. Works completely offline once set up.", color: "red" },
-        { icon: "🖥️", title: "Web Dashboard", desc: "Kanban pipeline, rich job cards, config editor, and activity log at localhost:3000.", color: "green" },
-        { icon: "🗄️", title: "Persistent Cache", desc: "SQLite cache with 7-day TTL. Never re-review the same jobs. Skip seen listings automatically.", color: "yellow" },
-        { icon: "🌍", title: "Cross-Platform", desc: "Linux, macOS, and Windows. One-command install. Pick Ollama or llama.cpp during setup.", color: "cyan" },
-      ];
+  <!-- FEATURES -->
+  <section class="section" id="features">
+    <p class="section-eyebrow">What it does</p>
+    <h2 class="section-title">Built for people who<br>actually want to find a job.</h2>
+    <div class="features">
+      <div class="feature">
+        <div class="feature-num">01</div>
+        <h3>Concurrent Multi-Board Search</h3>
+        <p>Searches 8 job sources in parallel. Remotive, Arbeitnow, RemoteOK, Jobicy, Himalayas, plus direct ATS feeds from Greenhouse and Ashby. Results arrive in seconds, not minutes.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-num">02</div>
+        <h3>Local AI Scoring</h3>
+        <p>Every listing is scored 0-100 against your profile using a language model running on your machine. Skills match, experience fit, salary alignment, remote compatibility. No data leaves your laptop.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-num">03</div>
+        <h3>Web Dashboard</h3>
+        <p>A dark-mode interface at localhost:3000 with a Kanban pipeline, color-coded match scores, job inspector with full descriptions and LLM reasoning, and a config editor for your profile.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-num">04</div>
+        <h3>Smart Caching</h3>
+        <p>Persistent SQLite cache with configurable TTL. Jobs you have already seen are filtered out automatically. No more re-reading the same listings every morning.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-num">05</div>
+        <h3>Cross-Platform</h3>
+        <p>Works on Linux, macOS, and Windows. The installer detects your platform, sets up a virtual environment, and lets you choose between Ollama and llama.cpp for the AI backend.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-num">06</div>
+        <h3>You Are the Loop</h3>
+        <p>The AI scores and summarizes. You decide what fits. A 95 does not mean "apply immediately." A 40 does not mean "skip." The tool filters; you choose.</p>
+      </div>
+    </div>
+  </section>
 
-      const sources = [
-        { name: "Remotive", type: "API", note: "Remote jobs" },
-        { name: "Arbeitnow", type: "API", note: "Worldwide, paginated" },
-        { name: "RemoteOK", type: "API", note: "Remote jobs" },
-        { name: "Jobicy", type: "API", note: "Remote + salary data" },
-        { name: "Himalayas", type: "API", note: "Seniority levels" },
-        { name: "Greenhouse", type: "ATS", note: "15 companies" },
-        { name: "Ashby", type: "ATS", note: "15 companies" },
-        { name: "LinkedIn", type: "Scrape", note: "Opt-in" },
-      ];
+  <div class="divider"></div>
 
-      const steps = [
-        { num: "01", title: "Clone & Install", cmd: "git clone https://github.com/ANIRudH-lab-life/job-radar && cd job-radar && bash setup.sh" },
-        { num: "02", title: "Pick Your LLM", cmd: "Ollama (recommended) or llama.cpp — installer handles everything" },
-        { num: "03", title: "Search & Score", cmd: 'python -m jobradar -q "python developer" -p profile.yaml' },
-        { num: "04", title: "Track in Dashboard", cmd: "cd dashboard && bash run.sh → localhost:3000" },
-      ];
+  <!-- SOURCES -->
+  <section class="section" id="sources">
+    <p class="section-eyebrow">Data sources</p>
+    <h2 class="section-title">8 sources. One search.</h2>
+    <table class="sources-table">
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th>Type</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="source-name">Remotive</td><td><span class="source-type api">API</span></td><td class="source-note">Remote jobs, up to 1000 per request</td></tr>
+        <tr><td class="source-name">Arbeitnow</td><td><span class="source-type api">API</span></td><td class="source-note">Worldwide, paginated, 100 per page</td></tr>
+        <tr><td class="source-name">RemoteOK</td><td><span class="source-type api">API</span></td><td class="source-note">Remote jobs, high volume</td></tr>
+        <tr><td class="source-name">Jobicy</td><td><span class="source-type api">API</span></td><td class="source-note">Remote jobs with salary data</td></tr>
+        <tr><td class="source-name">Himalayas</td><td><span class="source-type api">API</span></td><td class="source-note">Remote jobs with seniority levels</td></tr>
+        <tr><td class="source-name">Greenhouse</td><td><span class="source-type ats">ATS</span></td><td class="source-note">15 curated companies (GitLab, Figma, Stripe)</td></tr>
+        <tr><td class="source-name">Ashby</td><td><span class="source-type ats">ATS</span></td><td class="source-note">15 curated companies (OpenAI, Anthropic, Linear)</td></tr>
+        <tr><td class="source-name">LinkedIn</td><td><span class="source-type scrape">Opt-in</span></td><td class="source-note">Web scraping, off by default, may violate ToS</td></tr>
+      </tbody>
+    </table>
+  </section>
 
-      return (
-        <div className="relative min-h-screen bg-[#050505] text-white overflow-hidden">
-          {/* Scanline overlay */}
-          <div className="scanline-effect fixed inset-0 pointer-events-none mix-blend-overlay opacity-30"></div>
+  <div class="divider"></div>
 
-          {/* Mouse glow */}
-          <div
-            className="fixed top-0 left-0 w-[600px] h-[600px] bg-green-500/15 rounded-full blur-[120px] pointer-events-none z-0 transition-all duration-500"
-            style={{ transform: `translate(${mousePosition.x - 300}px, ${mousePosition.y - 300}px)` }}
-          />
-
-          {/* Grid background */}
-          <div className="absolute inset-0 moving-grid z-0 opacity-20"></div>
-
-          {/* NAVBAR */}
-          <nav className="relative z-50 flex items-center justify-between p-6 border-b border-white/10 backdrop-blur-md bg-black/50">
-            <div className="flex items-center gap-2 font-black text-xl tracking-tighter">
-              <span className="text-green-400 text-2xl">◎</span>
-              <span className="glitch-hover cursor-pointer">JOB_RADAR</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <a href="https://github.com/ANIRudH-lab-life/job-radar" target="_blank" rel="noopener"
-                 className="flex items-center gap-2 bg-white text-black px-4 py-2 hover:bg-green-400 transition-colors font-bold uppercase text-sm">
-                ★ Star on GitHub
-              </a>
-            </div>
-          </nav>
-
-          <main className="relative z-10">
-
-            {/* HERO */}
-            <section className="flex flex-col items-center justify-center pt-24 pb-16 px-6 text-center max-w-5xl mx-auto">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 border border-green-500/30 bg-green-500/10 text-green-400 text-xs font-bold uppercase tracking-widest mb-8">
-                ⚡ Local LLM Powered • Open Source • MIT Licensed
-              </div>
-
-              <h1 className="text-6xl md:text-8xl font-black uppercase tracking-tighter leading-[0.9] mb-6">
-                Hunt <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">Smarter.</span><br/>
-                Not Harder.
-              </h1>
-
-              <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-                A CLI job search agent that hunts across 8 sources at once, rated locally by AI.
-                <strong className="text-white block mt-2">You are the loop. The AI is just the filter.</strong>
-              </p>
-
-              {/* Install command */}
-              <div onClick={copyInstall}
-                   className="group relative inline-block cursor-pointer border border-green-500/30 hover:border-green-500/60 transition-all rounded-lg overflow-hidden">
-                <div className="bg-black border border-white/10 px-6 py-4 flex items-center gap-4 font-mono text-sm">
-                  <span className="text-green-500">➜</span>
-                  <span className="text-gray-300">curl -fsSL https://raw.github... | bash</span>
-                  <span className="ml-4 bg-white/10 hover:bg-green-500/30 px-3 py-1 text-xs font-bold uppercase transition-colors">
-                    {copied ? "✓ Copied" : "Copy"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-4 mt-8 text-sm text-gray-500">
-                <span>Linux</span><span>•</span><span>macOS</span><span>•</span><span>Windows</span><span>•</span><span>MIT License</span>
-              </div>
-            </section>
-
-            {/* MARQUEE */}
-            <div className="w-full overflow-hidden border-y border-white/10 bg-green-500 text-black py-3 font-black text-xl uppercase tracking-widest">
-              <div className="marquee-scroll whitespace-nowrap flex gap-8">
-                {Array(15).fill(null).map((_, i) => (
-                  <span key={i}>• HUMAN IN THE LOOP • ZERO CLOUD APIS • 8 DATA SOURCES • DIRECT ATS SCRAPING • LOCAL AI SCORING • MIT LICENSED • </span>
-                ))}
-              </div>
-            </div>
-
-            {/* STATS BAR */}
-            <section className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-px bg-white/10 border-b border-white/10">
-              {[
-                { num: "8", label: "Job Sources" },
-                { num: "0", label: "Cloud APIs" },
-                { num: "1.1GB", label: "Model Size" },
-                { num: "0", label: "Monthly Cost" },
-              ].map((stat, i) => (
-                <div key={i} className="bg-[#0a0a0a] p-8 text-center">
-                  <div className="text-4xl font-black text-green-400">{stat.num}</div>
-                  <div className="text-sm text-gray-500 mt-2 uppercase tracking-wider">{stat.label}</div>
-                </div>
-              ))}
-            </section>
-
-            {/* BENTO FEATURES */}
-            <section className="max-w-6xl mx-auto px-6 py-24">
-              <h2 className="text-4xl font-black uppercase tracking-tighter mb-12 text-center">
-                What It <span className="text-green-400">Does</span>
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Feature 1 - Large */}
-                <div className="col-span-1 md:col-span-2 bg-[#0a0a0a] border border-white/10 p-8 rounded-2xl relative overflow-hidden group hover:border-green-500/30 transition-colors">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full group-hover:bg-blue-500/20 transition-all"></div>
-                  <div className="text-5xl mb-6">⚡</div>
-                  <h3 className="text-2xl font-bold mb-3">100% Local Processing</h3>
-                  <p className="text-gray-400 leading-relaxed">Auto-detects Ollama or llama.cpp. Scores each job 0-100 on skills match, experience fit, salary fit, and remote fit entirely on your machine. Your resume data never leaves your laptop.</p>
-                </div>
-
-                {/* Feature 2 */}
-                <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-2xl hover:border-purple-500/30 transition-colors">
-                  <div className="text-5xl mb-6">📡</div>
-                  <h3 className="text-2xl font-bold mb-3">8 Free Sources</h3>
-                  <p className="text-gray-400">Remotive, Arbeitnow, RemoteOK, Jobicy, Himalayas, Greenhouse ATS, Ashby ATS, and LinkedIn.</p>
-                </div>
-
-                {/* Feature 3 */}
-                <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-2xl hover:border-red-500/30 transition-colors">
-                  <div className="text-5xl mb-6">🔒</div>
-                  <h3 className="text-2xl font-bold mb-3">Zero Cloud</h3>
-                  <p className="text-gray-400">No API keys. No subscriptions. No data leaving your laptop. Works completely offline once set up.</p>
-                </div>
-
-                {/* Feature 4 */}
-                <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-2xl hover:border-yellow-500/30 transition-colors">
-                  <div className="text-5xl mb-6">🗄️</div>
-                  <h3 className="text-2xl font-bold mb-3">Smart Cache</h3>
-                  <p className="text-gray-400">SQLite cache with configurable TTL. Never re-review the same jobs. Skip seen listings automatically.</p>
-                </div>
-
-                {/* Feature 5 */}
-                <div className="bg-[#0a0a0a] border border-white/10 p-8 rounded-2xl hover:border-cyan-500/30 transition-colors">
-                  <div className="text-5xl mb-6">🌍</div>
-                  <h3 className="text-2xl font-bold mb-3">Cross-Platform</h3>
-                  <p className="text-gray-400">Linux, macOS, Windows. One-command install. Pick Ollama or llama.cpp during setup.</p>
-                </div>
-
-                {/* Dashboard Card - Full Width */}
-                <div className="col-span-1 md:col-span-3 bg-[#0a0a0a] border border-white/10 p-10 rounded-2xl relative overflow-hidden group hover:border-green-500/30 transition-colors">
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10"></div>
-                  <div className="relative z-20">
-                    <div className="text-5xl mb-6">🖥️</div>
-                    <h3 className="text-3xl font-bold mb-3">Web Dashboard Included</h3>
-                    <p className="text-gray-400 max-w-xl">Visualize everything with a Kanban pipeline, color-coded match scores, interactive config editor, and live activity log at localhost:3000.</p>
-                  </div>
-                  {/* Mock dashboard */}
-                  <div className="absolute right-8 top-12 w-[500px] h-[320px] bg-black border border-white/20 rounded-xl shadow-2xl p-4 flex flex-col gap-3 opacity-60 group-hover:opacity-100 transition-opacity hidden md:flex">
-                    <div className="h-4 w-full bg-white/5 rounded"></div>
-                    <div className="flex gap-3 flex-1">
-                      <div className="flex-1 bg-green-500/20 border border-green-500/50 rounded-lg flex items-center justify-center font-bold text-green-400 text-sm">Match 95%</div>
-                      <div className="flex-1 bg-yellow-500/20 border border-yellow-500/50 rounded-lg flex items-center justify-center font-bold text-yellow-400 text-sm">Match 72%</div>
-                      <div className="flex-1 bg-red-500/20 border border-red-500/50 rounded-lg flex items-center justify-center font-bold text-red-400 text-sm">Match 40%</div>
-                    </div>
-                    <div className="flex gap-3">
-                      <div className="flex-1 h-8 bg-white/5 rounded"></div>
-                      <div className="flex-1 h-8 bg-white/5 rounded"></div>
-                      <div className="flex-1 h-8 bg-white/5 rounded"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* HOW IT WORKS */}
-            <section className="max-w-4xl mx-auto px-6 py-24">
-              <h2 className="text-4xl font-black uppercase tracking-tighter mb-12 text-center">
-                Get Started in <span className="text-green-400">4 Steps</span>
-              </h2>
-              <div className="space-y-6">
-                {steps.map((step, i) => (
-                  <div key={i} className="flex items-start gap-6 bg-[#0a0a0a] border border-white/10 p-6 rounded-xl hover:border-green-500/30 transition-colors">
-                    <div className="text-3xl font-black text-green-400/40">{step.num}</div>
-                    <div className="flex-1">
-                      <h3 className="text-xl font-bold mb-2">{step.title}</h3>
-                      <div className="bg-black border border-white/10 rounded-lg px-4 py-3 font-mono text-sm text-gray-400">
-                        <span className="text-green-500">$</span> {step.cmd}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* SOURCES TABLE */}
-            <section className="max-w-4xl mx-auto px-6 py-24">
-              <h2 className="text-4xl font-black uppercase tracking-tighter mb-12 text-center">
-                <span className="text-green-400">8</span> Sources, One Search
-              </h2>
-              <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl overflow-hidden">
-                <div className="grid grid-cols-3 gap-px bg-white/10 text-xs font-bold uppercase tracking-wider text-gray-500">
-                  <div className="bg-[#0a0a0a] p-4">Source</div>
-                  <div className="bg-[#0a0a0a] p-4">Type</div>
-                  <div className="bg-[#0a0a0a] p-4">Notes</div>
-                </div>
-                {sources.map((src, i) => (
-                  <div key={i} className="grid grid-cols-3 gap-px bg-white/5 hover:bg-white/10 transition-colors">
-                    <div className="bg-[#0a0a0a] p-4 font-bold">{src.name}</div>
-                    <div className="bg-[#0a0a0a] p-4">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                        src.type === 'ATS' ? 'bg-purple-500/20 text-purple-400' :
-                        src.type === 'Scrape' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-green-500/20 text-green-400'
-                      }`}>{src.type}</span>
-                    </div>
-                    <div className="bg-[#0a0a0a] p-4 text-gray-400">{src.note}</div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* CTA */}
-            <section className="text-center py-24 px-6 border-t border-white/10">
-              <h2 className="text-5xl md:text-6xl font-black uppercase tracking-tighter mb-6">
-                Ready to <span className="text-green-400">Hunt Smarter?</span>
-              </h2>
-              <p className="text-gray-400 text-lg mb-10 max-w-xl mx-auto">
-                Stop drowning in tabs. Let local AI do the filtering. You decide what fits.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="https://github.com/ANIRudH-lab-life/job-radar" target="_blank" rel="noopener"
-                   className="bg-green-500 text-black px-8 py-4 font-black uppercase text-lg hover:bg-green-400 transition-colors">
-                  ★ Star on GitHub
-                </a>
-                <a href="https://github.com/ANIRudH-lab-life/job-radar#quick-install" target="_blank" rel="noopener"
-                   className="border border-white/20 px-8 py-4 font-bold uppercase text-lg hover:border-green-500/50 hover:bg-white/5 transition-colors">
-                  Read the Docs →
-                </a>
-              </div>
-            </section>
-
-            {/* FOOTER */}
-            <footer className="border-t border-white/10 p-6 text-center text-gray-600 text-sm">
-              <p>Built with ❤️ by <a href="https://github.com/ANIRudH-lab-life" className="text-green-400 hover:underline">Anirudh</a> • MIT Licensed • <a href="https://github.com/ANIRudH-lab-life/job-radar" className="text-green-400 hover:underline">GitHub</a></p>
-            </footer>
-          </main>
+  <!-- HOW IT WORKS -->
+  <section class="section" id="install">
+    <p class="section-eyebrow">Getting started</p>
+    <h2 class="section-title">Running in four steps.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-content">
+          <h3>Clone and install</h3>
+          <p style="font-size:14px;color:var(--text-muted)">The installer checks everything before downloading. Safe to re-run.</p>
+          <code><span class="prompt">$</span> git clone https://github.com/ANIRudH-lab-life/job-radar && cd job-radar && bash setup.sh</code>
         </div>
-      );
-    };
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-content">
+          <h3>Choose your AI backend</h3>
+          <p style="font-size:14px;color:var(--text-muted)">Ollama (recommended) or llama.cpp. The installer handles the model download.</p>
+          <code><span class="prompt">$</span> ollama pull qwen3:1.7b</code>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-content">
+          <h3>Search and score</h3>
+          <p style="font-size:14px;color:var(--text-muted)">Define your profile, run a search. Every listing gets scored against your background.</p>
+          <code><span class="prompt">$</span> python -m jobradar -q "python developer" -p profile.yaml</code>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-content">
+          <h3>Track in the dashboard</h3>
+          <p style="font-size:14px;color:var(--text-muted)">Move jobs through a pipeline: Discovered, Reviewing, Applied, Interviewing.</p>
+          <code><span class="prompt">$</span> cd dashboard && bash run.sh &nbsp;# localhost:3000</code>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<JobRadarLanding />);
+  <!-- PHILOSOPHY -->
+  <section class="philosophy">
+    <blockquote>
+      "You are the loop. The AI is just the filter."
+    </blockquote>
+    <cite>The JobRadar Philosophy</cite>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <h2>Start searching.</h2>
+    <p>Free. Open source. No account required. Your data stays on your machine.</p>
+    <div class="cta-buttons">
+      <a href="https://github.com/ANIRudH-lab-life/job-radar" target="_blank" class="btn-primary">View on GitHub</a>
+      <a href="https://github.com/ANIRudH-lab-life/job-radar#quick-install" target="_blank" class="btn-secondary">Read the Docs</a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <span>JobRadar v1.0 &middot; MIT License</span>
+    <span>Built by <a href="https://github.com/ANIRudH-lab-life" style="color:var(--accent)">Anirudh</a></span>
+    <a href="https://github.com/ANIRudH-lab-life/job-radar" target="_blank">github.com/ANIRudH-lab-life/job-radar</a>
+  </footer>
+
+  <script>
+    function switchTab(os) {
+      document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('install-linux').style.display = os === 'linux' ? 'inline-flex' : 'none';
+      document.getElementById('install-windows').style.display = os === 'windows' ? 'inline-flex' : 'none';
+      event.target.classList.add('active');
+    }
+    function copyCommand(os) {
+      const cmds = {
+        linux: 'curl -fsSL https://raw.githubusercontent.com/ANIRudH-lab-life/job-radar/main/setup.sh | bash',
+        windows: 'git clone https://github.com/ANIRudH-lab-life/job-radar && cd job-radar && .\\setup.ps1'
+      };
+      navigator.clipboard.writeText(cmds[os]);
+      const btn = document.getElementById('copy-' + os);
+      btn.textContent = 'Copied';
+      setTimeout(() => btn.textContent = 'Copy', 2000);
+    }
   </script>
+
 </body>
 </html>
