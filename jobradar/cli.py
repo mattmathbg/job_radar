@@ -220,6 +220,8 @@ def search_jobs(
 
 def interactive_mode(profile: Optional[Profile] = None):
     """Run in interactive mode."""
+    import jobradar.rating as _rating
+
     display_header()
 
     console.print("[bold cyan]Welcome to JobRadar![/bold cyan]")
@@ -246,7 +248,7 @@ def interactive_mode(profile: Optional[Profile] = None):
                 profile=profile,
                 ai_enabled=True,
                 llm_url=LLM_URL,
-                llm_model=LLM_MODEL or "qwen3:1.7b",
+                llm_model=_rating.LLM_MODEL or "qwen3:1.7b",
             )
             console.print()
 

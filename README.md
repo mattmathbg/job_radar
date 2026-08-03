@@ -251,6 +251,8 @@ python -m jobradar -q "python dev"
 job-radar/
 ├── setup.sh              # Smart installer (Linux/macOS)
 ├── setup.ps1             # Smart installer (Windows)
+├── uninstall.sh          # Uninstaller (Linux/macOS)
+├── uninstall.ps1         # Uninstaller (Windows)
 ├── package.json          # npm wrapper
 ├── profile.yaml          # Your profile (edit this)
 ├── companies.yaml        # ATS company slugs (edit this)
@@ -292,6 +294,27 @@ LinkedIn scraping is **off by default**. It depends on undocumented HTML that br
 ```bash
 python -m jobradar -q "python dev" --enable-linkedin
 ```
+
+## Uninstalling
+
+Run the uninstaller in the project directory — it removes everything the installer created (venv, models, binaries, caches, dashboard database) but **keeps your `profile.yaml` and `companies.yaml`**:
+
+```bash
+# Linux / macOS
+bash uninstall.sh
+
+# Windows
+.\uninstall.ps1
+```
+
+Options:
+
+| Flag | What it does |
+|------|-------------|
+| `--purge` / `-Purge` | Also delete `profile.yaml`, `companies.yaml`, `results.csv`, `results.json` |
+| `--keep-cache` / `-KeepCache` | Keep the `~/.jobradar` seen-jobs cache |
+
+Safe to re-run — a second run just reports what's already gone. Uninstalling does **not** remove Ollama or the models you pulled into it; those are managed separately (`ollama rm qwen3:1.7b` if you want them gone).
 
 ## Running Tests
 

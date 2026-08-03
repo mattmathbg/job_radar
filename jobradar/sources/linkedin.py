@@ -65,10 +65,13 @@ class LinkedInSearch:
 
                 for card in cards:
                     try:
-                        title_el = card.find("h3", class_="base-card__full-link")
+                        # LinkedIn changed markup: the title/company links are now
+                        # <a> tags (previously <h3>/<h4>). Support both, preferring
+                        # the <a> variant so the parser keeps working across layouts.
+                        title_el = card.find("a", class_="base-card__full-link") or card.find("h3", class_="base-card__full-link")
                         title = title_el.get_text(strip=True) if title_el else ""
                         url = title_el["href"].split("?")[0] if title_el and title_el.get("href") else ""
-                        company_el = card.find("h4", class_="hidden-nested-link")
+                        company_el = card.find("a", class_="hidden-nested-link") or card.find("h4", class_="hidden-nested-link")
                         company = company_el.get_text(strip=True) if company_el else ""
                         location_el = card.find("span", class_="job-search-card__location")
                         loc = location_el.get_text(strip=True) if location_el else ""

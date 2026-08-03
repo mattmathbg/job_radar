@@ -398,3 +398,56 @@ class TestLinkedInSource:
             assert len(jobs) == 1
             assert jobs[0].title == "Python Dev"
             assert jobs[0].source == "LinkedIn"
+
+    @patch("jobradar.sources.linkedin.requests.get")
+    def test_enabled_new_markup_returns_jobs(self, mock_get):
+        """LinkedIn moved title/company to <a> tags (2026 markup change)."""
+        from jobradar.sources.linkedin import LinkedInSearch
+        with patch.dict(os.environ, {"JOBRADAR_ENABLE_LINKEDIN": "1"}):
+            mock_resp = MagicMock(status_code=200, text="""
+                <ul>
+                    <li>
+                        <a class="base-card__full-link absolute top-0" href="https://in.linkedin.com/jobs/view/123?trk=public_jobs_js">Rust Engineer</a>
+                        <a class="hidden-nested-link" href="https://www.linkedin.com/company/acme">Acme Corp</a>
+                        <span class="job-search-card__location">London, England, United Kingdom</span>
+                    </li>
+                </ul>
+            """)
+            mock_get.return_value = mock_resp
+            jobs = LinkedInSearch.search("rust", limit=10)
+            assert len(jobs) == 1
+            assert jobs[0].title == "Rust Engineer"
+            assert jobs[0].company == "Acme Corp"
+            assert jobs[0].url == "https://in.linkedin.com/jobs/view/123"
+            assert jobs[0].source == "LinkedIn"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Interactive mode regression tests
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestInteractiveMode:
+    def test_interactive_quit_no_crash(self, monkeypatch, capsys):
+        """Regression: 'python -m jobradar' crashed with NameError: LLM_MODEL
+        not defined when a search was run from interactive mode."""
+        from jobradar.cli import interactive_mode
+
+        # Feed: a query, empty location, then quit
+        inputs = iter(["python dev", "", "quit"])
+        monkeypatch.setattr("jobradar.cli.console.input", lambda prompt="": next(inputs))
+
+        called = {}
+
+        def fake_search_jobs(**kwargs):
+            called["kwargs"] = kwargs
+            return []
+
+        monkeypatch.setattr("jobradar.cli.search_jobs", fake_search_jobs)
+
+        interactive_mode(profile=None)  # must not raise
+
+        out = capsys.readouterr().out
+        assert "Goodbye" in out
+        assert "llm_model" in called["kwargs"]
+        # Must pass a model name (either auto-detected or the default fallback)
+        assert called["kwargs"]["llm_model"]

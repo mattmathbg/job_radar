@@ -141,7 +141,7 @@ if $USE_OLLAMA; then
 
     # Check if model is already pulled
     MODEL_LIST=$(ollama list 2>/dev/null || echo "")
-    if echo "$MODEL_LIST" | grep -q "qwen3"; then
+    if echo "$MODEL_LIST" | grep -q "qwen3:1\.7b"; then
         skip "Ollama model $OLLAMA_MODEL already available"
     else
         info "  Pulling $OLLAMA_MODEL (~1.1 GB) — this may take a minute..."
@@ -328,6 +328,7 @@ if ! $USE_OLLAMA; then
             warn "Download manually from:"
             warn "  $MODEL_URL"
             warn "  Save to: $MODEL_DIR/"
+            exit 1
         fi
     fi
 else
