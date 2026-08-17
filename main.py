@@ -1,3 +1,4 @@
+import os
 import asyncio
 import logging
 import uvicorn
@@ -38,18 +39,28 @@ async def run_etl():
         except Exception as e:
             logger.error(f"Failed to initialize GroqProcessor: {e}")
 
-        new_jobs_processed = 0
-        
+        # Filter out existing jobs first
+        jobs_to_process = []
         for job in raw_jobs:
             if await loader.job_exists(job.url):
-                logger.debug(f"Job {job.url} already exists in DB. Skipping.")
-                continue
-                
+                logger.debug(f"Job already in DB: {job.title} at {job.company}")
+            else:
+                jobs_to_process.append(job)
+
+        total_new_jobs = len(jobs_to_process)
+        logger.info(f"Found {total_new_jobs} new jobs to process and save.")
+
+        pacing_delay = float(os.getenv("GROQ_PACING_DELAY", "2.0"))
+        new_jobs_processed = 0
+        
+        for idx, job in enumerate(jobs_to_process, 1):
             try:
                 if processor:
-                    logger.info(f"Processing job with LLM: {job.title} at {job.company}")
+                    logger.info(f"[{idx}/{total_new_jobs}] Processing with Groq LLM: {job.title} at {job.company}")
                     processed_job = await processor.process_job(job)
                     await loader.save_job(processed_job)
+                    # Pacing delay between API calls to prevent exceeding Rate Limits (TPM / RPM)
+                    await asyncio.sleep(pacing_delay)
                 else:
                     # Fallback if processor is disabled
                     job.summary = "Description disponible dans l'offre."
@@ -59,13 +70,14 @@ async def run_etl():
                     await loader.save_job(job)
                 new_jobs_processed += 1
             except Exception as e:
-                logger.error(f"Failed to process and save job {job.url}: {e}")
-                # Save raw job if LLM processing fails so data is preserved
+                logger.error(f"Failed to process job {job.title} ({job.url}): {e}")
+                # Save raw job if LLM processing fails so data is not lost
                 job.summary = "Analyse IA temporairement indisponible."
                 job.is_relevant = True
                 job.bullshit_score = 1
                 job.tech_stack = []
                 await loader.save_job(job)
+                new_jobs_processed += 1
                 
         logger.info(f"ETL Pipeline Finished. Processed and saved {new_jobs_processed} new jobs.")
     except Exception as e:
