@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Job Radar | Luxembourg, France & Remote</title>
+    <title>Job Radar | Observatoire Tech, Salaires & Fit IA</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -21,20 +21,40 @@
                 <div class="logo-icon">🎯</div>
                 <div>
                     <h1>Job Radar <span class="badge-live">LIVE</span></h1>
-                    <p class="subtitle">Pipeline ETL & Analyse IA (Software & Data Engineering)</p>
+                    <p class="subtitle">Scraping ETL, Matching de Profil IA & Intelligence Salariale</p>
                 </div>
             </div>
             
             <div class="header-actions">
                 <nav class="tab-nav">
-                    <button id="tab-jobs" class="tab-btn active">🎯 Offres en direct</button>
-                    <button id="tab-trends" class="tab-btn">📊 Tendances & Analytics</button>
+                    <button id="tab-jobs" class="tab-btn active">🎯 Offres & Fit Profil</button>
+                    <button id="tab-trends" class="tab-btn">📊 Tendances & Salaires</button>
                 </nav>
                 <button id="btn-refresh" class="btn btn-secondary">
                     <span class="refresh-icon">🔄</span> Actualiser
                 </button>
             </div>
         </header>
+
+        <!-- Candidate Profile Banner -->
+        <div class="profile-banner">
+            <div class="profile-avatar">👨‍💻</div>
+            <div class="profile-details">
+                <div class="profile-title">Profil Analysé : <strong>Étudiant L3 → M1 Informatique (Stage / Alternance / Junior)</strong></div>
+                <div class="profile-tags">
+                    <span class="p-tag main">Python</span>
+                    <span class="p-tag main">FastAPI</span>
+                    <span class="p-tag main">Streamlit</span>
+                    <span class="p-tag main">Docker</span>
+                    <span class="p-tag main">LangGraph</span>
+                    <span class="p-tag main">MongoDB</span>
+                    <span class="p-tag main">SQLite</span>
+                    <span class="p-tag loc">🇱🇺 Luxembourg</span>
+                    <span class="p-tag loc">🇫🇷 France</span>
+                    <span class="p-tag loc">🌐 Remote</span>
+                </div>
+            </div>
+        </div>
 
         <!-- KPI Metrics Dashboard -->
         <section class="kpi-grid">
@@ -46,24 +66,24 @@
                 </div>
             </div>
             <div class="kpi-card highlight">
+                <div class="kpi-icon">🎯</div>
+                <div class="kpi-content">
+                    <span class="kpi-value" id="kpi-fit-score">0.0<span class="kpi-sub">/10</span></span>
+                    <span class="kpi-label">Fit Score Moyen</span>
+                </div>
+            </div>
+            <div class="kpi-card">
                 <div class="kpi-icon">⚡</div>
                 <div class="kpi-content">
                     <span class="kpi-value" id="kpi-relevant">0</span>
-                    <span class="kpi-label">Rôles Pertinents</span>
+                    <span class="kpi-label">Rôles Tech Pertinents</span>
                 </div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-icon">💩</div>
                 <div class="kpi-content">
-                    <span class="kpi-value" id="kpi-bs-score">0.0</span>
+                    <span class="kpi-value" id="kpi-bs-score">0.0<span class="kpi-sub">/10</span></span>
                     <span class="kpi-label">Bullshit Score Moyen</span>
-                </div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-icon">🤖</div>
-                <div class="kpi-content">
-                    <span class="kpi-value">Groq LLM</span>
-                    <span class="kpi-label">groq/compound</span>
                 </div>
             </div>
         </section>
@@ -74,13 +94,13 @@
             <section class="controls-card">
                 <div class="search-box">
                     <span class="search-icon">🔍</span>
-                    <input type="text" id="filter-search" placeholder="Rechercher par titre, entreprise, technologie...">
+                    <input type="text" id="filter-search" placeholder="Rechercher par titre, entreprise, techno ou skill manquant...">
                 </div>
 
                 <div class="filter-group">
-                    <label for="filter-location">📍 Localisation :</label>
+                    <label for="filter-location">📍 Région :</label>
                     <select id="filter-location" class="select-input">
-                        <option value="all">Toutes les localisations</option>
+                        <option value="all">Toutes régions</option>
                         <option value="Luxembourg">Luxembourg 🇱🇺</option>
                         <option value="France">France 🇫🇷</option>
                         <option value="Remote">Remote 🌐</option>
@@ -88,10 +108,30 @@
                 </div>
 
                 <div class="filter-group">
-                    <label for="filter-bs">💩 Bullshit Max :</label>
+                    <label for="filter-fit">🎯 Fit Min :</label>
+                    <select id="filter-fit" class="select-input">
+                        <option value="all">Tous les scores</option>
+                        <option value="8">≥ 8 (Top Match 🌟)</option>
+                        <option value="6">≥ 6 (Bon match 👍)</option>
+                        <option value="4">≥ 4 (Moyen)</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-sort">↕️ Trier par :</label>
+                    <select id="filter-sort" class="select-input">
+                        <option value="fit_score_desc">🎯 Fit Score (Max → Min)</option>
+                        <option value="salary_desc">💰 Salaire Estimé (Max → Min)</option>
+                        <option value="bullshit_asc">💩 Moins de Bullshit</option>
+                        <option value="latest">🕒 Plus récentes</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-bs">💩 BS Max :</label>
                     <select id="filter-bs" class="select-input">
                         <option value="10">Tous (10 max)</option>
-                        <option value="7">≤ 7 (Faible/Modéré)</option>
+                        <option value="7">≤ 7 (Modéré)</option>
                         <option value="4">≤ 4 (Très sobre)</option>
                     </select>
                 </div>
@@ -101,14 +141,14 @@
                         <input type="checkbox" id="filter-relevant" checked>
                         <span class="slider"></span>
                     </label>
-                    <span class="toggle-label">Pertinents uniquement</span>
+                    <span class="toggle-label">Pertinents</span>
                 </div>
             </section>
 
             <!-- Jobs Listing -->
             <main class="content-section">
                 <div class="section-title-row">
-                    <h2>Offres d'Emploi <span id="jobs-count-badge" class="count-pill">0</span></h2>
+                    <h2>Offres d'Emploi & Analyses IA <span id="jobs-count-badge" class="count-pill">0</span></h2>
                     <div class="last-update" id="last-update-time">Mis à jour récemment</div>
                 </div>
 
@@ -121,7 +161,7 @@
                 <div id="empty-state" class="empty-state hidden">
                     <div class="empty-icon">📭</div>
                     <h3>Aucune offre ne correspond à vos filtres</h3>
-                    <p>Essayez d'élargir vos critères de recherche ou décochez "Pertinents uniquement".</p>
+                    <p>Essayez d'élargir vos critères de recherche ou de réduire le Fit Score minimum.</p>
                 </div>
             </main>
         </div>
@@ -130,37 +170,61 @@
         <div id="view-trends" class="view-content hidden">
             <main class="content-section">
                 <div class="section-title-row">
-                    <h2>📊 Business Intelligence & Tendances du Marché</h2>
-                    <span class="count-pill">En direct</span>
+                    <h2>📊 Intelligence Marché & Analyse Régionale</h2>
+                    <span class="count-pill">En temps réel</span>
+                </div>
+
+                <!-- Regional Tech Top 5 Breakdown -->
+                <div class="regional-trends-block">
+                    <div class="block-header">
+                        <h3>🗺️ Top 5 Technologies les Plus Demandées par Région</h3>
+                        <p>Comparatif des exigences techniques clés sur chaque marché cible</p>
+                    </div>
+                    <div class="region-cards-grid" id="region-tech-grid">
+                        <div class="region-card skeleton"></div>
+                        <div class="region-card skeleton"></div>
+                        <div class="region-card skeleton"></div>
+                    </div>
                 </div>
 
                 <div class="charts-grid">
-                    <!-- Chart 1: Top Tech Stack -->
-                    <div class="chart-card wide">
+                    <!-- Chart 1: Average Salaries by Location -->
+                    <div class="chart-card">
                         <div class="chart-header">
-                            <h3>🚀 Technologies les Plus Demandées</h3>
-                            <p>Classement des frameworks & langages les plus récurrents</p>
+                            <h3>💰 Salaires Moyens Estimés par Localisation</h3>
+                            <p>Moyenne brute annuelle (€ / an) basée sur les offres et le niveau demandé</p>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-salary-loc"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 2: Top Tech Stack Global -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>🚀 Technologies Globales les Plus Fréquentes</h3>
+                            <p>Volume total d'occurrences sur l'ensemble des offres</p>
                         </div>
                         <div class="chart-wrapper">
                             <canvas id="chart-top-tech"></canvas>
                         </div>
                     </div>
 
-                    <!-- Chart 2: Location Distribution -->
+                    <!-- Chart 3: Location Distribution -->
                     <div class="chart-card">
                         <div class="chart-header">
-                            <h3>📍 Répartition par Pays / Remote</h3>
-                            <p>Proportion des offres par marché</p>
+                            <h3>📍 Répartition du Volume d'Offres</h3>
+                            <p>Proportion des opportunités détectées par marché</p>
                         </div>
                         <div class="chart-wrapper">
                             <canvas id="chart-location"></canvas>
                         </div>
                     </div>
 
-                    <!-- Chart 3: Bullshit Score by Tech -->
+                    <!-- Chart 4: Bullshit Score by Tech -->
                     <div class="chart-card">
                         <div class="chart-header">
-                            <h3>💩 Jargon Corporate par Technologie</h3>
+                            <h3>💩 Jargon Corporate par Stack</h3>
                             <p>Score de bullshit moyen associé à chaque technologie</p>
                         </div>
                         <div class="chart-wrapper">

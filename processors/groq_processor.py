@@ -3,22 +3,22 @@ import re
 import json
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, List
 
 from groq import AsyncGroq, RateLimitError, APIConnectionError, APIStatusError
 from models.job import JobOffer
 
 logger = logging.getLogger(__name__)
 
-def parse_retry_after(error_msg: str, default: float = 15.0) -> float:
+def parse_retry_after(error_msg: str, default: float = 10.0) -> float:
     """
     Extracts the recommended wait time in seconds from Groq RateLimitError message.
-    E.g. 'Please try again in 35.568s.' -> 36.5
+    E.g. 'Please try again in 35.568s.' -> 37.0
     """
     match = re.search(r'(?:try again in|retry after|in)\s*([\d\.]+)\s*s', error_msg, re.IGNORECASE)
     if match:
         try:
-            return float(match.group(1)) + 1.5  # Add 1.5s safety margin
+            return float(match.group(1)) + 1.5
         except ValueError:
             pass
     return default
@@ -58,38 +58,80 @@ class GroqProcessor:
             logger.warning("GROQ_API_KEY environment variable not found.")
         self.client = AsyncGroq(api_key=api_key)
         
-        # Primary model (default to groq/compound or env var)
-        self.primary_model = model_name or os.getenv("GROQ_MODEL", "groq/compound")
-        # Lightweight fallback model to reduce token/rate limit pressure
-        self.fallback_model = os.getenv("GROQ_FALLBACK_MODEL", "groq/compound-mini")
-        self.current_model = self.primary_model
+        # Multi-model pool for seamless failover when encountering RPD or TPM limits
+        default_pool = [
+            "openai/gpt-oss-20b",
+            "openai/gpt-oss-120b",
+            "qwen/qwen3.6-27b",
+            "groq/compound-mini",
+            "groq/compound"
+        ]
+        
+        primary = model_name or os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+        if primary in default_pool:
+            default_pool.remove(primary)
+        self.model_pool: List[str] = [primary] + default_pool
+        self.model_index = 0
         
         self.max_retries = int(os.getenv("GROQ_MAX_RETRIES", "5"))
         self.max_desc_length = int(os.getenv("GROQ_MAX_DESC_LENGTH", "3000"))
 
+    @property
+    def current_model(self) -> str:
+        return self.model_pool[self.model_index % len(self.model_pool)]
+
+    def rotate_model(self):
+        self.model_index = (self.model_index + 1) % len(self.model_pool)
+        logger.info(f"[Model Failover] Switched active Groq model to: {self.current_model}")
+
     async def process_job(self, job: JobOffer) -> JobOffer:
         """
-        Analyzes job posting with Groq LLM, with adaptive rate-limit handling,
-        retry-after backoff, and model fallback.
+        Analyzes job posting with Groq LLM with candidate profile matching,
+        salary estimation, fit scoring, and missing skills detection.
         """
-        # Truncate description to save tokens and avoid hitting TPM limits
         clean_desc = (job.description or "").strip()
         if len(clean_desc) > self.max_desc_length:
             clean_desc = clean_desc[:self.max_desc_length] + "\n... [Description tronquée pour optimiser les tokens]"
 
-        prompt = f"""Analyze the following job description and extract key information.
-You MUST return ONLY a valid JSON object matching exactly this structure, with no extra text or markdown:
+        prompt = f"""Tu es un recruteur tech expert analysant une offre d'emploi pour un profil précis.
+
+--- PROFIL DU CANDIDAT ---
+- Étudiant passant de la L3 au M1 Informatique.
+- Recherche : Stage, Alternance ou Premier Emploi Junior (Software / Data / IA).
+- Localisations cibles : Luxembourg, France, ou Full Remote.
+- Stack maîtrisée : Python, FastAPI, Streamlit, Docker, LangGraph, MongoDB, SQLite.
+- Langues : Français (natif), Anglais (technique courant).
+
+--- OFFRE À ANALYSER ---
+Titre du poste : {job.title}
+Entreprise : {job.company}
+Localisation : {job.location}
+Description :
+{clean_desc}
+
+--- INSTRUCTIONS D'ANALYSE ---
+Tu DOIS retourner UNIQUEMENT un objet JSON valide conforme à la structure suivante (sans aucun texte supplémentaire ni balise externe) :
 {{
-  "tech_stack": ["List", "of", "technologies", "mentioned"],
-  "salary_estimation": "Estimated salary range if mentioned, otherwise 'Not provided'",
-  "bullshit_score": integer from 1 to 10 evaluating how much corporate jargon/buzzwords are used (10 = full of buzzwords),
-  "is_relevant": true if it's a genuine Software or Data engineering role, false otherwise,
-  "summary": "A concise 2-sentence summary of the role and requirements in French"
+  "tech_stack": ["Liste", "des", "technologies", "mentionnées"],
+  "fit_score": 8,
+  "missing_skills": ["Liste", "des", "technologies/compétences", "demandées", "que", "le", "candidat", "ne", "maîtrise", "pas", "encore"],
+  "salary_min": 45000,
+  "salary_max": 55000,
+  "salary_estimation": "45 000 € - 55 000 € / an",
+  "bullshit_score": 3,
+  "is_relevant": true,
+  "summary": "Résumé concis en 2 phrases du poste et des exigences clés en français."
 }}
 
-Job Title: {job.title}
-Company: {job.company}
-Description: {clean_desc}
+Critères d'évaluation :
+- "fit_score" (entier 1 à 10) :
+  * 8-10 : Excellent match (rôle Python/FastAPI/Data/IA, ouvert junior/stage/alternance, localisation adaptée).
+  * 5-7 : Match modéré (stack proche ou facilement adaptable, junior/intermédiaire).
+  * 1-4 : Faible match (ex: Lead/Senior +8 ans d'expérience, ou technologies 100% différentes comme COBOL/SAP/C++ embarqué).
+- "missing_skills" : Les technologies ou frameworks demandés dans l'offre qui ne font PAS partie de sa stack actuelle (Python, FastAPI, Streamlit, Docker, LangGraph, MongoDB, SQLite).
+- "salary_min" & "salary_max" : Salaires bruts annuels en Euros sous forme d'entiers (ex: 42000, 52000). Si non mentionnés explicitement dans l'offre, estime une fourchette réaliste selon le marché local (Luxembourg généralement 50k-70k€ pour junior, France 38k-48k€, stage/alternance ajusté) et les exigences du poste.
+- "bullshit_score" (entier 1 à 10) : Niveau de jargon corporate/buzzwords creux (10 = ultra jargon, 1 = description technique factuelle).
+- "is_relevant" (booléen) : true si c'est un poste technique Software, Data, IA ou Web; false si c'est du support pur, commercial, ou hors tech.
 """
 
         for attempt in range(1, self.max_retries + 1):
@@ -98,7 +140,7 @@ Description: {clean_desc}
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are an expert HR and tech recruiter assistant. You output strict, valid JSON only."
+                            "content": "Tu es un assistant RH et Tech spécialisé en recrutement. Tu renvoies TOUJOURS du JSON strict et valide."
                         },
                         {
                             "role": "user",
@@ -114,54 +156,94 @@ Description: {clean_desc}
 
                 parsed_data = json.loads(cleaned_json_text)
 
-                job.tech_stack = parsed_data.get("tech_stack", [])
-                if not isinstance(job.tech_stack, list):
-                    job.tech_stack = [str(job.tech_stack)]
-                    
-                job.salary_estimation = str(parsed_data.get("salary_estimation", "Not provided"))
-                job.bullshit_score = int(parsed_data.get("bullshit_score", 1))
+                # Tech stack
+                tech_stack = parsed_data.get("tech_stack", [])
+                job.tech_stack = tech_stack if isinstance(tech_stack, list) else [str(tech_stack)]
+
+                # Missing skills
+                missing_skills = parsed_data.get("missing_skills", [])
+                job.missing_skills = missing_skills if isinstance(missing_skills, list) else [str(missing_skills)]
+
+                # Fit Score
+                try:
+                    job.fit_score = max(1, min(10, int(parsed_data.get("fit_score", 5))))
+                except (ValueError, TypeError):
+                    job.fit_score = 5
+
+                # Salaries
+                try:
+                    s_min = parsed_data.get("salary_min")
+                    job.salary_min = int(s_min) if s_min is not None else None
+                except (ValueError, TypeError):
+                    job.salary_min = None
+
+                try:
+                    s_max = parsed_data.get("salary_max")
+                    job.salary_max = int(s_max) if s_max is not None else None
+                except (ValueError, TypeError):
+                    job.salary_max = None
+
+                # Salary string estimation
+                job.salary_estimation = str(parsed_data.get("salary_estimation", ""))
+                if not job.salary_estimation or job.salary_estimation.lower() == "not provided":
+                    if job.salary_min and job.salary_max:
+                        job.salary_estimation = f"{job.salary_min // 1000}k€ - {job.salary_max // 1000}k€"
+                    elif job.salary_min:
+                        job.salary_estimation = f"À partir de {job.salary_min // 1000}k€"
+                    elif job.salary_max:
+                        job.salary_estimation = f"Jusqu'à {job.salary_max // 1000}k€"
+                    else:
+                        job.salary_estimation = "Non communiqué"
+
+                # Bullshit & Relevance
+                try:
+                    job.bullshit_score = max(1, min(10, int(parsed_data.get("bullshit_score", 1))))
+                except (ValueError, TypeError):
+                    job.bullshit_score = 1
+
                 job.is_relevant = bool(parsed_data.get("is_relevant", True))
                 job.summary = str(parsed_data.get("summary", "Description disponible dans l'offre."))
 
-                # Successfully processed
                 return job
 
             except RateLimitError as e:
-                wait_time = parse_retry_after(str(e), default=20.0)
+                err_msg = str(e)
+                wait_time = parse_retry_after(err_msg, default=3.0)
                 logger.warning(
-                    f"[RateLimit] Hit Groq rate limit for '{job.title}' on attempt {attempt}/{self.max_retries}. "
-                    f"Waiting {wait_time:.1f}s before retry..."
+                    f"[RateLimit] Hit limit on {self.current_model} for '{job.title}' (attempt {attempt}/{self.max_retries})."
                 )
                 
-                # Switch to lighter fallback model if we hit rate limits on primary
-                if self.current_model != self.fallback_model and attempt >= 2:
-                    logger.info(f"[Model Fallback] Switching from {self.current_model} to {self.fallback_model}")
-                    self.current_model = self.fallback_model
+                # If RPD (Requests Per Day) limit is reached, rotate to next model immediately
+                if "RPD" in err_msg or "requests per day" in err_msg or attempt >= 2:
+                    self.rotate_model()
                     
                 if attempt >= self.max_retries:
-                    logger.error(f"[RateLimit] Exceeded max retries ({self.max_retries}) for job {job.url}.")
+                    logger.error(f"[RateLimit] Exceeded max retries for job {job.url}.")
                     raise
                     
-                await asyncio.sleep(wait_time)
+                # Short pause before trying with the next model
+                await asyncio.sleep(min(wait_time, 5.0))
 
             except (APIConnectionError, APIStatusError) as e:
-                backoff = min(2 ** attempt + 2.0, 30.0)
+                backoff = min(2 ** attempt + 1.0, 15.0)
                 logger.warning(
-                    f"[API Error] Groq API error on attempt {attempt}/{self.max_retries} for '{job.title}': {e}. "
-                    f"Retrying in {backoff:.1f}s..."
+                    f"[API Error] on {self.current_model} for '{job.title}': {e}. Retrying in {backoff:.1f}s..."
                 )
+                self.rotate_model()
                 if attempt >= self.max_retries:
                     raise
                 await asyncio.sleep(backoff)
 
             except json.JSONDecodeError as e:
-                logger.error(f"[JSON Error] Failed to decode JSON from Groq for job {job.title}: {e}")
+                logger.error(f"[JSON Error] Failed to decode JSON from {self.current_model} for job {job.title}: {e}")
+                self.rotate_model()
                 if attempt >= self.max_retries:
                     raise
                 await asyncio.sleep(1.0)
 
             except Exception as e:
-                logger.error(f"[Unexpected Error] Unexpected error processing job {job.title}: {e}")
+                logger.error(f"[Unexpected Error] on {self.current_model} for job {job.title}: {e}")
+                self.rotate_model()
                 if attempt >= self.max_retries:
                     raise
                 await asyncio.sleep(2.0)

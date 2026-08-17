@@ -32,6 +32,7 @@ data/*.sqlite
 *.db
 *.sqlite3
 results.csv
+repomix-output.xml
 
 # IDEs
 .vscode/
