@@ -7,6 +7,7 @@ from typing import Optional, List
 
 from groq import AsyncGroq, RateLimitError, APIConnectionError, APIStatusError
 from models.job import JobOffer
+from models.profile import CandidateProfile
 
 logger = logging.getLogger(__name__)
 
@@ -84,23 +85,32 @@ class GroqProcessor:
         self.model_index = (self.model_index + 1) % len(self.model_pool)
         logger.info(f"[Model Failover] Switched active Groq model to: {self.current_model}")
 
-    async def process_job(self, job: JobOffer) -> JobOffer:
+    async def process_job(self, job: JobOffer, profile: Optional[CandidateProfile] = None) -> JobOffer:
         """
         Analyzes job posting with Groq LLM with candidate profile matching,
         salary estimation, fit scoring, and missing skills detection.
         """
+        candidate = profile or CandidateProfile.load()
+
         clean_desc = (job.description or "").strip()
         if len(clean_desc) > self.max_desc_length:
             clean_desc = clean_desc[:self.max_desc_length] + "\n... [Description tronquée pour optimiser les tokens]"
 
-        prompt = f"""Tu es un recruteur tech expert analysant une offre d'emploi pour un profil précis.
+        tech_str = ", ".join(candidate.tech_stack)
+        loc_str = ", ".join(candidate.target_locations)
+        contract_str = ", ".join(candidate.target_contracts)
+        lang_str = ", ".join(candidate.languages)
+        notes_str = candidate.custom_instructions or "N/A"
+
+        prompt = f"""Tu es un recruteur tech expert analysant une offre d'emploi pour un profil candidat précis.
 
 --- PROFIL DU CANDIDAT ---
-- Étudiant passant de la L3 au M1 Informatique.
-- Recherche : Stage, Alternance ou Premier Emploi Junior (Software / Data / IA).
-- Localisations cibles : Luxembourg, France, ou Full Remote.
-- Stack maîtrisée : Python, FastAPI, Streamlit, Docker, LangGraph, MongoDB, SQLite.
-- Langues : Français (natif), Anglais (technique courant).
+- Niveau / Titre : {candidate.title}
+- Types d'opportunités recherchées : {contract_str}
+- Localisations cibles : {loc_str}
+- Technologies maîtrisées : {tech_str}
+- Langues : {lang_str}
+- Instructions spécifiques : {notes_str}
 
 --- OFFRE À ANALYSER ---
 Titre du poste : {job.title}
@@ -125,13 +135,13 @@ Tu DOIS retourner UNIQUEMENT un objet JSON valide conforme à la structure suiva
 
 Critères d'évaluation :
 - "fit_score" (entier 1 à 10) :
-  * 8-10 : Excellent match (rôle Python/FastAPI/Data/IA, ouvert junior/stage/alternance, localisation adaptée).
-  * 5-7 : Match modéré (stack proche ou facilement adaptable, junior/intermédiaire).
-  * 1-4 : Faible match (ex: Lead/Senior +8 ans d'expérience, ou technologies 100% différentes comme COBOL/SAP/C++ embarqué).
-- "missing_skills" : Les technologies ou frameworks demandés dans l'offre qui ne font PAS partie de sa stack actuelle (Python, FastAPI, Streamlit, Docker, LangGraph, MongoDB, SQLite).
-- "salary_min" & "salary_max" : Salaires bruts annuels en Euros sous forme d'entiers (ex: 42000, 52000). Si non mentionnés explicitement dans l'offre, estime une fourchette réaliste selon le marché local (Luxembourg généralement 50k-70k€ pour junior, France 38k-48k€, stage/alternance ajusté) et les exigences du poste.
+  * 8-10 : Excellent match (adéquation forte avec sa stack maîtrisée [{tech_str}], contrat [{contract_str}], localisation [{loc_str}]).
+  * 5-7 : Match modéré (stack proche ou facilement assimilable, niveau d'expérience accessible).
+  * 1-4 : Faible match (ex: Lead/Senior +8 ans d'expérience, technologies non compatibles, ou hors critères).
+- "missing_skills" : Les technologies ou frameworks demandés dans l'offre qui ne font PAS partie de sa stack actuelle ({tech_str}).
+- "salary_min" & "salary_max" : Salaires bruts annuels en Euros sous forme d'entiers (ex: 42000, 52000). Si non mentionnés explicitement dans l'offre, estime une fourchette réaliste selon le marché local (Luxembourg, France, Remote) et le profil demandé.
 - "bullshit_score" (entier 1 à 10) : Niveau de jargon corporate/buzzwords creux (10 = ultra jargon, 1 = description technique factuelle).
-- "is_relevant" (booléen) : true si c'est un poste technique Software, Data, IA ou Web; false si c'est du support pur, commercial, ou hors tech.
+- "is_relevant" (booléen) : true si c'est un poste technique Software, Data, IA ou Web pertinent; false sinon.
 """
 
         for attempt in range(1, self.max_retries + 1):
@@ -213,7 +223,6 @@ Critères d'évaluation :
                     f"[RateLimit] Hit limit on {self.current_model} for '{job.title}' (attempt {attempt}/{self.max_retries})."
                 )
                 
-                # If RPD (Requests Per Day) limit is reached, rotate to next model immediately
                 if "RPD" in err_msg or "requests per day" in err_msg or attempt >= 2:
                     self.rotate_model()
                     
@@ -221,7 +230,6 @@ Critères d'évaluation :
                     logger.error(f"[RateLimit] Exceeded max retries for job {job.url}.")
                     raise
                     
-                # Short pause before trying with the next model
                 await asyncio.sleep(min(wait_time, 5.0))
 
             except (APIConnectionError, APIStatusError) as e:

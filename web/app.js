@@ -27,13 +27,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const lastUpdateTime = document.getElementById('last-update-time');
     const regionTechGrid = document.getElementById('region-tech-grid');
 
+    // Profile Banner Elements
+    const profileBannerTitle = document.getElementById('profile-banner-title');
+    const profileBannerTags = document.getElementById('profile-banner-tags');
+    const btnOpenProfile = document.getElementById('btn-open-profile');
+
+    // Profile Modal Elements
+    const profileModal = document.getElementById('profile-modal');
+    const btnCloseProfileModal = document.getElementById('btn-close-profile-modal');
+    const btnCancelProfile = document.getElementById('btn-cancel-profile');
+    const profileForm = document.getElementById('profile-form');
+    const profTitle = document.getElementById('prof-title');
+    const profLanguages = document.getElementById('prof-languages');
+    const profInstructions = document.getElementById('prof-instructions');
+    const profTechList = document.getElementById('prof-tech-list');
+    const inputNewTech = document.getElementById('input-new-tech');
+    const btnAddTech = document.getElementById('btn-add-tech');
+    const profContractsGroup = document.getElementById('prof-contracts-group');
+    const profLocationsGroup = document.getElementById('prof-locations-group');
+
+    // Toast Element
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-msg');
+
+    let currentProfile = null;
+    let editTechStack = [];
     let debounceTimer;
+    let toastTimer;
+
     let chartSalaryLocInstance = null;
     let chartTopTechInstance = null;
     let chartLocationInstance = null;
     let chartBsTechInstance = null;
 
     // Load initial data
+    fetchProfile();
     fetchStats();
     fetchJobs();
 
@@ -73,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const refreshIcon = btnRefresh.querySelector('.refresh-icon');
         refreshIcon.style.transform = 'rotate(360deg)';
         refreshIcon.style.transition = 'transform 0.5s ease';
+        fetchProfile();
         fetchStats();
         fetchJobs();
         if (viewTrends.classList.contains('active')) {
@@ -83,6 +112,188 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshIcon.style.transition = 'none';
         }, 500);
     });
+
+    // Profile Modal Events
+    btnOpenProfile.addEventListener('click', openProfileModal);
+    btnCloseProfileModal.addEventListener('click', closeProfileModal);
+    btnCancelProfile.addEventListener('click', closeProfileModal);
+
+    profileModal.addEventListener('click', (e) => {
+        if (e.target === profileModal) {
+            closeProfileModal();
+        }
+    });
+
+    // Add Tech Tag
+    btnAddTech.addEventListener('click', addTechTagFromInput);
+    inputNewTech.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addTechTagFromInput();
+        }
+    });
+
+    profileForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await saveProfileData();
+    });
+
+    // ==========================================
+    // Profile Management Functions
+    // ==========================================
+
+    async function fetchProfile() {
+        try {
+            const res = await fetch('/api/profile');
+            if (res.ok) {
+                currentProfile = await res.json();
+                renderProfileBanner(currentProfile);
+            }
+        } catch (err) {
+            console.error('Error fetching profile:', err);
+        }
+    }
+
+    function renderProfileBanner(profile) {
+        if (!profile) return;
+
+        const contractsStr = (profile.target_contracts || []).join(' / ');
+        profileBannerTitle.innerHTML = `Profil Analysé : <strong>${escapeHTML(profile.title)} ${contractsStr ? `(${escapeHTML(contractsStr)})` : ''}</strong>`;
+
+        let tagsHtml = '';
+        (profile.tech_stack || []).forEach(tech => {
+            tagsHtml += `<span class="p-tag main">${escapeHTML(tech)}</span>`;
+        });
+
+        (profile.target_locations || []).forEach(loc => {
+            let flag = '📍';
+            if (loc.toLowerCase().includes('luxembourg')) flag = '🇱🇺';
+            else if (loc.toLowerCase().includes('france')) flag = '🇫🇷';
+            else if (loc.toLowerCase().includes('remote')) flag = '🌐';
+            else if (loc.toLowerCase().includes('suisse')) flag = '🇨🇭';
+            tagsHtml += `<span class="p-tag loc">${flag} ${escapeHTML(loc)}</span>`;
+        });
+
+        profileBannerTags.innerHTML = tagsHtml;
+    }
+
+    function openProfileModal() {
+        if (!currentProfile) return;
+
+        profTitle.value = currentProfile.title || '';
+        profLanguages.value = (currentProfile.languages || []).join(', ');
+        profInstructions.value = currentProfile.custom_instructions || '';
+
+        // Checkboxes for contracts
+        const selectedContracts = currentProfile.target_contracts || [];
+        profContractsGroup.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.checked = selectedContracts.includes(cb.value);
+        });
+
+        // Checkboxes for locations
+        const selectedLocs = currentProfile.target_locations || [];
+        profLocationsGroup.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.checked = selectedLocs.includes(cb.value);
+        });
+
+        // Tech stack tags
+        editTechStack = [...(currentProfile.tech_stack || [])];
+        renderEditTechTags();
+
+        profileModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeProfileModal() {
+        profileModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    function renderEditTechTags() {
+        profTechList.innerHTML = editTechStack.map((tech, idx) => `
+            <span class="edit-tech-chip">
+                ${escapeHTML(tech)}
+                <button type="button" class="btn-remove-tag" data-idx="${idx}">&times;</button>
+            </span>
+        `).join('');
+
+        profTechList.querySelectorAll('.btn-remove-tag').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
+                editTechStack.splice(idx, 1);
+                renderEditTechTags();
+            });
+        });
+    }
+
+    function addTechTagFromInput() {
+        const val = inputNewTech.value.trim();
+        if (val && !editTechStack.includes(val)) {
+            editTechStack.push(val);
+            inputNewTech.value = '';
+            renderEditTechTags();
+        }
+    }
+
+    async function saveProfileData() {
+        const contracts = Array.from(profContractsGroup.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+        const locations = Array.from(profLocationsGroup.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+        const languages = profLanguages.value.split(',').map(s => s.trim()).filter(Boolean);
+
+        const updated = {
+            title: profTitle.value.trim() || 'Candidat Informatique',
+            target_roles: currentProfile.target_roles || ['Software Engineer', 'Data Engineer'],
+            target_contracts: contracts.length > 0 ? contracts : ['Junior'],
+            target_locations: locations.length > 0 ? locations : ['Remote'],
+            tech_stack: editTechStack.length > 0 ? editTechStack : ['Python'],
+            languages: languages.length > 0 ? languages : ['Français (natif)', 'Anglais (technique)'],
+            custom_instructions: profInstructions.value.trim()
+        };
+
+        try {
+            const btnSave = document.getElementById('btn-save-profile');
+            btnSave.disabled = true;
+            btnSave.textContent = 'Enregistrement...';
+
+            const res = await fetch('/api/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updated)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                currentProfile = data.profile;
+                renderProfileBanner(currentProfile);
+                closeProfileModal();
+                showToast('✅ Profil candidat mis à jour avec succès !');
+            } else {
+                showToast('❌ Erreur lors de l\'enregistrement', true);
+            }
+        } catch (err) {
+            console.error('Error saving profile:', err);
+            showToast('❌ Erreur réseau', true);
+        } finally {
+            const btnSave = document.getElementById('btn-save-profile');
+            btnSave.disabled = false;
+            btnSave.textContent = '💾 Enregistrer le profil';
+        }
+    }
+
+    function showToast(message, isError = false) {
+        clearTimeout(toastTimer);
+        toastMsg.textContent = message;
+        toast.className = `toast ${isError ? 'toast-error' : 'toast-success'}`;
+        toast.classList.remove('hidden');
+
+        toastTimer = setTimeout(() => {
+            toast.classList.add('hidden');
+        }, 4000);
+    }
+
+    // ==========================================
+    // Analytics & Jobs Functions
+    // ==========================================
 
     async function fetchStats() {
         try {
@@ -355,7 +566,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createJobCardHTML(job) {
-        // Fit Score calculation & color coding
         const fitScore = job.fit_score !== undefined && job.fit_score !== null ? job.fit_score : 1;
         let fitClass = 'fit-low';
         let fitText = 'Faible Match';
@@ -371,7 +581,6 @@ document.addEventListener('DOMContentLoaded', () => {
             fitIcon = '🟡';
         }
 
-        // Bullshit Score calculation & color coding
         const bsScore = job.bullshit_score || 0;
         let bsClass = 'bs-low';
         let bsLabel = `Bullshit: ${bsScore}/10 🟢`;
@@ -383,7 +592,6 @@ document.addEventListener('DOMContentLoaded', () => {
             bsLabel = `Bullshit: ${bsScore}/10 🟡`;
         }
 
-        // Salary formatting
         let formattedSalary = job.salary_estimation || '';
         if (job.salary_min && job.salary_max) {
             const minK = Math.round(job.salary_min / 1000);
@@ -399,10 +607,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<span class="badge badge-salary">💰 ${escapeHTML(formattedSalary)}</span>`
             : '';
 
-        // Tech Stack Tags
         const techTags = (job.tech_stack || []).map(t => `<span class="tech-tag">${escapeHTML(t)}</span>`).join('');
 
-        // Missing Skills Tags
         const missingSkills = job.missing_skills || [];
         const missingSkillsSection = missingSkills.length > 0 ? `
             <div class="missing-skills-section">
@@ -416,7 +622,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
             <article class="job-card ${fitScore >= 8 ? 'highlight-fit' : ''}">
                 <div class="card-top">
-                    <!-- Fit Score Meter Badge -->
                     <div class="fit-score-header">
                         <div class="fit-badge ${fitClass}">
                             <span class="fit-icon">${fitIcon}</span>

@@ -1,11 +1,13 @@
 import os
+import asyncio
 from typing import Optional
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from loaders.sqlite_loader import SQLiteLoader
+from models.profile import CandidateProfile
 
-app = FastAPI(title="Job Radar API", version="2.0.0")
+app = FastAPI(title="Job Radar API", version="2.1.0")
 loader = SQLiteLoader()
 
 @app.on_event("startup")
@@ -38,6 +40,15 @@ async def get_stats():
 @app.get("/api/trends")
 async def get_trends():
     return await loader.get_trends()
+
+@app.get("/api/profile")
+async def get_profile():
+    return CandidateProfile.load()
+
+@app.post("/api/profile")
+async def update_profile(profile: CandidateProfile):
+    profile.save()
+    return {"status": "success", "profile": profile}
 
 # Mount web directory for static frontend files
 web_dir = os.path.join(os.path.dirname(__file__), "web")

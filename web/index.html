@@ -40,8 +40,10 @@
         <div class="profile-banner">
             <div class="profile-avatar">👨‍💻</div>
             <div class="profile-details">
-                <div class="profile-title">Profil Analysé : <strong>Étudiant L3 → M1 Informatique (Stage / Alternance / Junior)</strong></div>
-                <div class="profile-tags">
+                <div class="profile-title" id="profile-banner-title">
+                    Profil Analysé : <strong>Étudiant L3 → M1 Informatique (Stage / Alternance / Junior)</strong>
+                </div>
+                <div class="profile-tags" id="profile-banner-tags">
                     <span class="p-tag main">Python</span>
                     <span class="p-tag main">FastAPI</span>
                     <span class="p-tag main">Streamlit</span>
@@ -54,6 +56,9 @@
                     <span class="p-tag loc">🌐 Remote</span>
                 </div>
             </div>
+            <button id="btn-open-profile" class="btn btn-edit-profile">
+                ✏️ Modifier mon profil
+            </button>
         </div>
 
         <!-- KPI Metrics Dashboard -->
@@ -234,6 +239,88 @@
                 </div>
             </main>
         </div>
+    </div>
+
+    <!-- PROFILE MODAL -->
+    <div id="profile-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <span class="modal-icon">⚙️</span>
+                    <div>
+                        <h3>Modifier Mon Profil Candidat</h3>
+                        <p>Ces critères personnalisent le prompt IA, le Fit Score et la détection des skills manquants.</p>
+                    </div>
+                </div>
+                <button id="btn-close-profile-modal" class="btn-close">&times;</button>
+            </div>
+
+            <form id="profile-form" class="modal-body">
+                <div class="form-row">
+                    <div class="form-group flex-2">
+                        <label for="prof-title">🎓 Niveau d'études / Titre :</label>
+                        <input type="text" id="prof-title" class="text-input" placeholder="ex: Étudiant L3 → M1 Informatique" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label>💼 Contrats visés :</label>
+                        <div class="checkbox-group" id="prof-contracts-group">
+                            <label class="check-pill"><input type="checkbox" value="Stage"> <span>🎓 Stage</span></label>
+                            <label class="check-pill"><input type="checkbox" value="Alternance"> <span>💼 Alternance</span></label>
+                            <label class="check-pill"><input type="checkbox" value="Junior"> <span>🚀 CDI/CDD Junior</span></label>
+                            <label class="check-pill"><input type="checkbox" value="Freelance"> <span>🌐 Freelance</span></label>
+                        </div>
+                    </div>
+
+                    <div class="form-group flex-1">
+                        <label>📍 Localisations ciblées :</label>
+                        <div class="checkbox-group" id="prof-locations-group">
+                            <label class="check-pill"><input type="checkbox" value="Luxembourg"> <span>🇱🇺 Luxembourg</span></label>
+                            <label class="check-pill"><input type="checkbox" value="France"> <span>🇫🇷 France</span></label>
+                            <label class="check-pill"><input type="checkbox" value="Remote"> <span>🌐 Full Remote</span></label>
+                            <label class="check-pill"><input type="checkbox" value="Suisse"> <span>🇨🇭 Suisse</span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>🛠️ Technologies maîtrisées (Stack principale) :</label>
+                    <div class="tag-input-container" id="tech-tags-container">
+                        <div class="tags-list" id="prof-tech-list"></div>
+                        <div class="tag-input-row">
+                            <input type="text" id="input-new-tech" class="text-input" placeholder="Ajouter une techno (ex: React, AWS, PyTorch...)">
+                            <button type="button" id="btn-add-tech" class="btn btn-tag-add">+ Ajouter</button>
+                        </div>
+                    </div>
+                    <span class="form-hint">Les technologies non présentes dans cette liste seront détectées comme "Compétences à acquérir".</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="prof-languages">🗣️ Langues maîtrisées :</label>
+                    <input type="text" id="prof-languages" class="text-input" placeholder="ex: Français (natif), Anglais (technique courant)">
+                </div>
+
+                <div class="form-group">
+                    <label for="prof-instructions">🎯 Instructions spécifiques pour l'IA (optionnel) :</label>
+                    <textarea id="prof-instructions" class="textarea-input" rows="2" placeholder="ex: Intérêt marqué pour le génératif / LLMs, préférer les environnements cloud AWS/GCP..."></textarea>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" id="btn-cancel-profile" class="btn btn-secondary">Annuler</button>
+                    <button type="submit" id="btn-save-profile" class="btn btn-primary">
+                        💾 Enregistrer le profil
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <span class="toast-icon">✅</span>
+        <span class="toast-msg" id="toast-msg">Profil enregistré avec succès !</span>
     </div>
 
     <script src="/static/app.js"></script>
