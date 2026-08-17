@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Radar | Luxembourg, France & Remote</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="background-glow glow-1"></div>
+    <div class="background-glow glow-2"></div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo-icon">🎯</div>
+                <div>
+                    <h1>Job Radar <span class="badge-live">LIVE</span></h1>
+                    <p class="subtitle">Pipeline ETL & Analyse IA (Software & Data Engineering)</p>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <nav class="tab-nav">
+                    <button id="tab-jobs" class="tab-btn active">🎯 Offres en direct</button>
+                    <button id="tab-trends" class="tab-btn">📊 Tendances & Analytics</button>
+                </nav>
+                <button id="btn-refresh" class="btn btn-secondary">
+                    <span class="refresh-icon">🔄</span> Actualiser
+                </button>
+            </div>
+        </header>
+
+        <!-- KPI Metrics Dashboard -->
+        <section class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-icon">💼</div>
+                <div class="kpi-content">
+                    <span class="kpi-value" id="kpi-total">0</span>
+                    <span class="kpi-label">Offres Scrapées</span>
+                </div>
+            </div>
+            <div class="kpi-card highlight">
+                <div class="kpi-icon">⚡</div>
+                <div class="kpi-content">
+                    <span class="kpi-value" id="kpi-relevant">0</span>
+                    <span class="kpi-label">Rôles Pertinents</span>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon">💩</div>
+                <div class="kpi-content">
+                    <span class="kpi-value" id="kpi-bs-score">0.0</span>
+                    <span class="kpi-label">Bullshit Score Moyen</span>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon">🤖</div>
+                <div class="kpi-content">
+                    <span class="kpi-value">Groq LLM</span>
+                    <span class="kpi-label">groq/compound</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- JOBS VIEW SECTION -->
+        <div id="view-jobs" class="view-content active">
+            <!-- Control Bar / Filters -->
+            <section class="controls-card">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="filter-search" placeholder="Rechercher par titre, entreprise, technologie...">
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-location">📍 Localisation :</label>
+                    <select id="filter-location" class="select-input">
+                        <option value="all">Toutes les localisations</option>
+                        <option value="Luxembourg">Luxembourg 🇱🇺</option>
+                        <option value="France">France 🇫🇷</option>
+                        <option value="Remote">Remote 🌐</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="filter-bs">💩 Bullshit Max :</label>
+                    <select id="filter-bs" class="select-input">
+                        <option value="10">Tous (10 max)</option>
+                        <option value="7">≤ 7 (Faible/Modéré)</option>
+                        <option value="4">≤ 4 (Très sobre)</option>
+                    </select>
+                </div>
+
+                <div class="filter-toggle">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="filter-relevant" checked>
+                        <span class="slider"></span>
+                    </label>
+                    <span class="toggle-label">Pertinents uniquement</span>
+                </div>
+            </section>
+
+            <!-- Jobs Listing -->
+            <main class="content-section">
+                <div class="section-title-row">
+                    <h2>Offres d'Emploi <span id="jobs-count-badge" class="count-pill">0</span></h2>
+                    <div class="last-update" id="last-update-time">Mis à jour récemment</div>
+                </div>
+
+                <div id="jobs-grid" class="jobs-grid">
+                    <div class="job-card skeleton"></div>
+                    <div class="job-card skeleton"></div>
+                    <div class="job-card skeleton"></div>
+                </div>
+
+                <div id="empty-state" class="empty-state hidden">
+                    <div class="empty-icon">📭</div>
+                    <h3>Aucune offre ne correspond à vos filtres</h3>
+                    <p>Essayez d'élargir vos critères de recherche ou décochez "Pertinents uniquement".</p>
+                </div>
+            </main>
+        </div>
+
+        <!-- TRENDS VIEW SECTION -->
+        <div id="view-trends" class="view-content hidden">
+            <main class="content-section">
+                <div class="section-title-row">
+                    <h2>📊 Business Intelligence & Tendances du Marché</h2>
+                    <span class="count-pill">En direct</span>
+                </div>
+
+                <div class="charts-grid">
+                    <!-- Chart 1: Top Tech Stack -->
+                    <div class="chart-card wide">
+                        <div class="chart-header">
+                            <h3>🚀 Technologies les Plus Demandées</h3>
+                            <p>Classement des frameworks & langages les plus récurrents</p>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-top-tech"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 2: Location Distribution -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>📍 Répartition par Pays / Remote</h3>
+                            <p>Proportion des offres par marché</p>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-location"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 3: Bullshit Score by Tech -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3>💩 Jargon Corporate par Technologie</h3>
+                            <p>Score de bullshit moyen associé à chaque technologie</p>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="chart-bs-tech"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

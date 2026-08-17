@@ -1,37 +1,44 @@
+# Environment variables
+.env
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
-*.egg-info/
-dist/
+*.so
+.Python
+env/
+venv/
+.venv/
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
 *.egg
 
-# Virtual environment
-.venv/
-venv/
-env/
-
-# JobRadar results
-results.json
+# Database / Local storage
+data/*.db
+data/*.sqlite
+*.db
+*.sqlite3
 results.csv
-*.json
-!profile.yaml
-!package.json
-!package-lock.json
 
-# Downloaded binaries and models
-bin/
-models/
-*.gguf
-
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
-dashboard/jobradar_dashboard.db
+
+# OS
+.DS_Store
+Thumbs.db
