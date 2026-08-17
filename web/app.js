@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let debounceTimer;
     let toastTimer;
 
+    let chartHistoryInstance = null;
     let chartSalaryLocInstance = null;
     let chartTopTechInstance = null;
     let chartLocationInstance = null;
@@ -397,161 +398,273 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTrendsCharts(data) {
         if (typeof Chart === 'undefined') return;
 
+        // Chart 0: Historical Evolution / Line Chart (Wide)
+        const historyData = data.history_trends || { dates: [], series: {} };
+        const ctxHistory = document.getElementById('chart-history')?.getContext('2d');
+        if (ctxHistory) {
+            if (chartHistoryInstance) chartHistoryInstance.destroy();
+
+            const datasets = [
+                {
+                    label: 'Luxembourg 🇱🇺',
+                    data: historyData.series?.Luxembourg || [],
+                    borderColor: '#06b6d4',
+                    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+                    borderWidth: 2.5,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: '#06b6d4',
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                },
+                {
+                    label: 'France 🇫🇷',
+                    data: historyData.series?.France || [],
+                    borderColor: '#8b5cf6',
+                    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                    borderWidth: 2.5,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: '#8b5cf6',
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                },
+                {
+                    label: 'Remote 🌐',
+                    data: historyData.series?.Remote || [],
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    borderWidth: 2.5,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: '#10b981',
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }
+            ];
+
+            if (historyData.series?.Autres && historyData.series.Autres.some(v => v > 0)) {
+                datasets.push({
+                    label: 'Autres',
+                    data: historyData.series.Autres,
+                    borderColor: '#ec4899',
+                    backgroundColor: 'rgba(236, 72, 153, 0.12)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: '#ec4899',
+                    pointRadius: 3,
+                    pointHoverRadius: 5
+                });
+            }
+
+            chartHistoryInstance = new Chart(ctxHistory, {
+                type: 'line',
+                data: {
+                    labels: historyData.dates?.length ? historyData.dates : ['Aucune date'],
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                color: '#f3f4f6',
+                                font: { family: 'Inter', size: 12, weight: 600 },
+                                usePointStyle: true,
+                                boxWidth: 8
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => ` ${ctx.dataset.label}: ${ctx.raw} offre(s)`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#9ca3af', font: { family: 'Inter', size: 11 } },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            ticks: { color: '#9ca3af', font: { family: 'Inter' }, precision: 0 },
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
         // Chart 1: Average Salaries by Location (Bar Chart)
         const salByLoc = data.avg_salary_by_location || {};
         const salLabels = ['Luxembourg', 'France', 'Remote'];
         const salValues = salLabels.map(loc => salByLoc[loc] || 0);
 
-        const ctxSalary = document.getElementById('chart-salary-loc').getContext('2d');
-        if (chartSalaryLocInstance) chartSalaryLocInstance.destroy();
+        const ctxSalary = document.getElementById('chart-salary-loc')?.getContext('2d');
+        if (ctxSalary) {
+            if (chartSalaryLocInstance) chartSalaryLocInstance.destroy();
 
-        chartSalaryLocInstance = new Chart(ctxSalary, {
-            type: 'bar',
-            data: {
-                labels: ['Luxembourg 🇱🇺', 'France 🇫🇷', 'Remote 🌐'],
-                datasets: [{
-                    label: 'Salaire Brut Moyen (€ / an)',
-                    data: salValues,
-                    backgroundColor: [
-                        'rgba(6, 182, 212, 0.75)',
-                        'rgba(139, 92, 246, 0.75)',
-                        'rgba(16, 185, 129, 0.75)'
-                    ],
-                    borderColor: ['#06b6d4', '#8b5cf6', '#10b981'],
-                    borderWidth: 1.5,
-                    borderRadius: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx) => `${ctx.raw.toLocaleString('fr-FR')} € / an`
+            chartSalaryLocInstance = new Chart(ctxSalary, {
+                type: 'bar',
+                data: {
+                    labels: ['Luxembourg 🇱🇺', 'France 🇫🇷', 'Remote 🌐'],
+                    datasets: [{
+                        label: 'Salaire Brut Moyen (€ / an)',
+                        data: salValues,
+                        backgroundColor: [
+                            'rgba(6, 182, 212, 0.75)',
+                            'rgba(139, 92, 246, 0.75)',
+                            'rgba(16, 185, 129, 0.75)'
+                        ],
+                        borderColor: ['#06b6d4', '#8b5cf6', '#10b981'],
+                        borderWidth: 1.5,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.raw.toLocaleString('fr-FR')} € / an`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#9ca3af', font: { family: 'Inter', size: 12 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: {
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { family: 'Inter' },
+                                callback: (v) => `${(v / 1000).toFixed(0)}k €`
+                            },
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            beginAtZero: true
                         }
                     }
-                },
-                scales: {
-                    x: { ticks: { color: '#9ca3af', font: { family: 'Inter', size: 12 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                    y: {
-                        ticks: {
-                            color: '#9ca3af',
-                            font: { family: 'Inter' },
-                            callback: (v) => `${(v / 1000).toFixed(0)}k €`
-                        },
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        beginAtZero: true
-                    }
                 }
-            }
-        });
+            });
+        }
 
         // Chart 2: Top Technologies Global (Bar Chart)
         const topTech = data.top_technologies || [];
         const techLabels = topTech.map(t => t.name);
         const techCounts = topTech.map(t => t.count);
 
-        const ctxTech = document.getElementById('chart-top-tech').getContext('2d');
-        if (chartTopTechInstance) chartTopTechInstance.destroy();
+        const ctxTech = document.getElementById('chart-top-tech')?.getContext('2d');
+        if (ctxTech) {
+            if (chartTopTechInstance) chartTopTechInstance.destroy();
 
-        chartTopTechInstance = new Chart(ctxTech, {
-            type: 'bar',
-            data: {
-                labels: techLabels.length ? techLabels : ['Aucune donnée'],
-                datasets: [{
-                    label: "Nombre d'offres",
-                    data: techCounts.length ? techCounts : [0],
-                    backgroundColor: 'rgba(139, 92, 246, 0.75)',
-                    borderColor: '#8b5cf6',
-                    borderWidth: 1.5,
-                    borderRadius: 6,
-                    hoverBackgroundColor: 'rgba(139, 92, 246, 0.95)'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
+            chartTopTechInstance = new Chart(ctxTech, {
+                type: 'bar',
+                data: {
+                    labels: techLabels.length ? techLabels : ['Aucune donnée'],
+                    datasets: [{
+                        label: "Nombre d'offres",
+                        data: techCounts.length ? techCounts : [0],
+                        backgroundColor: 'rgba(139, 92, 246, 0.75)',
+                        borderColor: '#8b5cf6',
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        hoverBackgroundColor: 'rgba(139, 92, 246, 0.95)'
+                    }]
                 },
-                scales: {
-                    x: { ticks: { color: '#9ca3af', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                    y: { ticks: { color: '#9ca3af', font: { family: 'Inter' } }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#9ca3af', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { ticks: { color: '#9ca3af', font: { family: 'Inter' } }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }
+                    }
                 }
-            }
-        });
+            });
+        }
 
         // Chart 3: Location Distribution (Doughnut Chart)
         const locDist = data.location_distribution || {};
         const locLabels = Object.keys(locDist);
         const locCounts = Object.values(locDist);
 
-        const ctxLoc = document.getElementById('chart-location').getContext('2d');
-        if (chartLocationInstance) chartLocationInstance.destroy();
+        const ctxLoc = document.getElementById('chart-location')?.getContext('2d');
+        if (ctxLoc) {
+            if (chartLocationInstance) chartLocationInstance.destroy();
 
-        chartLocationInstance = new Chart(ctxLoc, {
-            type: 'doughnut',
-            data: {
-                labels: locLabels.length ? locLabels : ['Aucune donnée'],
-                datasets: [{
-                    data: locCounts.length ? locCounts : [1],
-                    backgroundColor: [
-                        'rgba(6, 182, 212, 0.8)',
-                        'rgba(139, 92, 246, 0.8)',
-                        'rgba(236, 72, 153, 0.8)',
-                        'rgba(16, 185, 129, 0.8)'
-                    ],
-                    borderColor: '#090d16',
-                    borderWidth: 3
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { color: '#f3f4f6', font: { family: 'Inter', size: 12 } }
+            chartLocationInstance = new Chart(ctxLoc, {
+                type: 'doughnut',
+                data: {
+                    labels: locLabels.length ? locLabels : ['Aucune donnée'],
+                    datasets: [{
+                        data: locCounts.length ? locCounts : [1],
+                        backgroundColor: [
+                            'rgba(6, 182, 212, 0.8)',
+                            'rgba(139, 92, 246, 0.8)',
+                            'rgba(236, 72, 153, 0.8)',
+                            'rgba(16, 185, 129, 0.8)'
+                        ],
+                        borderColor: '#090d16',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#f3f4f6', font: { family: 'Inter', size: 12 } }
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
 
         // Chart 4: Bullshit Score by Tech (Bar Chart)
         const bsPerTech = data.avg_bs_per_tech || {};
         const bsLabels = Object.keys(bsPerTech);
         const bsValues = Object.values(bsPerTech);
 
-        const ctxBs = document.getElementById('chart-bs-tech').getContext('2d');
-        if (chartBsTechInstance) chartBsTechInstance.destroy();
+        const ctxBs = document.getElementById('chart-bs-tech')?.getContext('2d');
+        if (ctxBs) {
+            if (chartBsTechInstance) chartBsTechInstance.destroy();
 
-        chartBsTechInstance = new Chart(ctxBs, {
-            type: 'bar',
-            data: {
-                labels: bsLabels.length ? bsLabels : ['Aucune donnée'],
-                datasets: [{
-                    label: "Score Bullshit Moyen (1-10)",
-                    data: bsValues.length ? bsValues : [0],
-                    backgroundColor: bsValues.map(v => v >= 7 ? 'rgba(239, 68, 68, 0.75)' : v >= 4 ? 'rgba(245, 158, 11, 0.75)' : 'rgba(16, 185, 129, 0.75)'),
-                    borderColor: 'rgba(255,255,255,0.15)',
-                    borderWidth: 1,
-                    borderRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
+            chartBsTechInstance = new Chart(ctxBs, {
+                type: 'bar',
+                data: {
+                    labels: bsLabels.length ? bsLabels : ['Aucune donnée'],
+                    datasets: [{
+                        label: "Score Bullshit Moyen (1-10)",
+                        data: bsValues.length ? bsValues : [0],
+                        backgroundColor: bsValues.map(v => v >= 7 ? 'rgba(239, 68, 68, 0.75)' : v >= 4 ? 'rgba(245, 158, 11, 0.75)' : 'rgba(16, 185, 129, 0.75)'),
+                        borderColor: 'rgba(255,255,255,0.15)',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
                 },
-                scales: {
-                    x: { ticks: { color: '#9ca3af', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                    y: { ticks: { color: '#9ca3af', font: { family: 'Inter' } }, grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 10 }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#9ca3af', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { ticks: { color: '#9ca3af', font: { family: 'Inter' } }, grid: { color: 'rgba(255,255,255,0.05)' }, min: 0, max: 10 }
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     function renderJobs(jobs) {
