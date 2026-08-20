@@ -1,0 +1,32 @@
+{
+  "title": "Étudiant L3 → M1 Informatique",
+  "target_roles": [
+    "Software Engineer",
+    "Data Engineer"
+  ],
+  "target_contracts": [
+    "Stage",
+    "Alternance",
+    "Junior"
+  ],
+  "target_locations": [
+    "Luxembourg",
+    "France",
+    "Remote"
+  ],
+  "tech_stack": [
+    "Python",
+    "FastAPI",
+    "Streamlit",
+    "Docker",
+    "LangGraph",
+    "MongoDB",
+    "SQLite",
+    "PostgreSQL"
+  ],
+  "languages": [
+    "Français",
+    "Anglais"
+  ],
+  "custom_instructions": "Test"
+}
